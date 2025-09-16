@@ -233,7 +233,7 @@ Expected output:
 ```bash
 python -c "
 import asyncio
-from src.ignition_mcp.ignition_client import IgnitionClient
+from ignition_mcp.ignition_client import IgnitionClient
 
 async def test():
     async with IgnitionClient() as client:
@@ -245,7 +245,6 @@ async def test():
 
 asyncio.run(test())
 "
-```
 
 ## Configuration Examples
 
@@ -353,8 +352,7 @@ telnet gateway.example.com 8088
 env | grep IGNITION_MCP
 
 # Test configuration parsing
-python -c "from src.ignition_mcp.config import settings; print(settings.dict())"
-```
+python -c "from ignition_mcp.config import settings; print(settings.model_dump())"
 
 ### Getting Help
 

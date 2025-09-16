@@ -90,12 +90,12 @@ IGNITION_MCP_SERVER_PORT=8000
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `IGNITION_GATEWAY_URL` | Gateway base URL | `http://localhost:8088` | Yes |
-| `IGNITION_USERNAME` | Gateway username | `admin` | Yes* |
-| `IGNITION_PASSWORD` | Gateway password | `password` | Yes* |
-| `IGNITION_API_KEY` | Gateway API key | `""` | No** |
-| `SERVER_HOST` | MCP server host | `127.0.0.1` | No |
-| `SERVER_PORT` | MCP server port | `8000` | No |
+| `IGNITION_MCP_IGNITION_GATEWAY_URL` | Gateway base URL | `http://localhost:8088` | Yes |
+| `IGNITION_MCP_IGNITION_USERNAME` | Gateway username | `admin` | Yes* |
+| `IGNITION_MCP_IGNITION_PASSWORD` | Gateway password | `password` | Yes* |
+| `IGNITION_MCP_IGNITION_API_KEY` | Gateway API key | `""` | No** |
+| `IGNITION_MCP_SERVER_HOST` | MCP server host | `127.0.0.1` | No |
+| `IGNITION_MCP_SERVER_PORT` | MCP server port | `8000` | No |
 
 *Required if no API key is provided  
 **If provided, takes precedence over username/password
