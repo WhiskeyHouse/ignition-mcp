@@ -2,11 +2,11 @@
 """Minimal MCP server based on official examples."""
 
 import asyncio
-from mcp.server.models import InitializationOptions
+
+import mcp.server.stdio
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
-import mcp.server.stdio
-
+from mcp.server.models import InitializationOptions
 
 server = Server("minimal-ignition")
 
@@ -18,20 +18,12 @@ async def handle_list_tools() -> list[types.Tool]:
         types.Tool(
             name="test_connection",
             description="Test connection",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False
-            },
+            inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
         ),
         types.Tool(
             name="get_projects",
             description="Get projects",
-            inputSchema={
-                "type": "object", 
-                "properties": {},
-                "additionalProperties": False
-            },
+            inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
         ),
     ]
 
@@ -43,16 +35,12 @@ async def handle_call_tool(
     """Handle tool calls."""
     if name == "test_connection":
         return [
-            types.TextContent(
-                type="text",
-                text="Connection test successful from minimal server!"
-            )
+            types.TextContent(type="text", text="Connection test successful from minimal server!")
         ]
     elif name == "get_projects":
         return [
             types.TextContent(
-                type="text", 
-                text='{"projects": ["MinimalProject1", "MinimalProject2"]}'
+                type="text", text='{"projects": ["MinimalProject1", "MinimalProject2"]}'
             )
         ]
     else:

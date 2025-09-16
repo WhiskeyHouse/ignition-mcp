@@ -6,7 +6,17 @@
       "Bash(python:*)",
       "Bash(echo $HOME)",
       "Bash(timeout:*)",
-      "Bash(PYTHONPATH=\"/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/src\" /Users/pmannion/Documents/whiskeyhouse/ignition-mcp/.venv/bin/python -c \"\nimport sys\nsys.path.insert(0, ''/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/src'')\ntry:\n    from ignition_mcp.ignition_tools import IgnitionTools\n    print(''✅ IgnitionTools import successful'')\n    tools = IgnitionTools()\n    print(''✅ IgnitionTools initialization successful'')\n    tool_list = tools.get_tools()\n    print(f''✅ Generated {len(tool_list)} tools'')\n    for i, tool in enumerate(tool_list[:3]):\n        print(f''   {i+1}. {tool.name}: {tool.description}'')\nexcept Exception as e:\n    print(f''❌ Error: {e}'')\n    import traceback\n    traceback.print_exc()\n\")"
+      "Bash(PYTHONPATH=\"/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/src\" /Users/pmannion/Documents/whiskeyhouse/ignition-mcp/.venv/bin/python -c \"\nimport sys\nsys.path.insert(0, ''/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/src'')\ntry:\n    from ignition_mcp.ignition_tools import IgnitionTools\n    print(''✅ IgnitionTools import successful'')\n    tools = IgnitionTools()\n    print(''✅ IgnitionTools initialization successful'')\n    tool_list = tools.get_tools()\n    print(f''✅ Generated {len(tool_list)} tools'')\n    for i, tool in enumerate(tool_list[:3]):\n        print(f''   {i+1}. {tool.name}: {tool.description}'')\nexcept Exception as e:\n    print(f''❌ Error: {e}'')\n    import traceback\n    traceback.print_exc()\n\")",
+      "Bash(mkdir:*)",
+      "Bash(ruff check:*)",
+      "Bash(uv venv:*)",
+      "Bash(uv pip install:*)",
+      "Bash(ruff format:*)",
+      "Bash(uv run ruff format:*)",
+      "Bash(uv run:*)",
+      "Bash(RUN_LIVE_GATEWAY_TESTS=1 uv run pytest test_server.py::test_connection -v --tb=short)",
+      "Bash(.git/hooks/pre-commit)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

@@ -7,23 +7,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
+
+@pytest.mark.asyncio
 async def test_mcp_communication():
     """Test MCP server communication via stdin/stdout."""
     print("🧪 Testing MCP Protocol Communication")
     print("=" * 40)
-    
+
     # Start the MCP server
     server_path = Path(__file__).parent / "run_server.sh"
-    
+
     process = subprocess.Popen(
         [str(server_path)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
-    
+
     try:
         # Send initialization message
         init_message = {
@@ -33,17 +36,14 @@ async def test_mcp_communication():
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {
-                    "name": "test-client",
-                    "version": "1.0.0"
-                }
-            }
+                "clientInfo": {"name": "test-client", "version": "1.0.0"},
+            },
         }
-        
+
         print("📤 Sending initialization...")
         process.stdin.write(json.dumps(init_message) + "\n")
         process.stdin.flush()
-        
+
         # Read response
         response = process.stdout.readline()
         if response:
@@ -52,18 +52,14 @@ async def test_mcp_communication():
         else:
             print("❌ No response from server")
             return False
-            
+
         # Test list tools
-        list_tools_message = {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/list"
-        }
-        
+        list_tools_message = {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
+
         print("\n📤 Requesting tools list...")
         process.stdin.write(json.dumps(list_tools_message) + "\n")
         process.stdin.flush()
-        
+
         # Read tools response
         tools_response = process.stdout.readline()
         if tools_response:
@@ -72,14 +68,14 @@ async def test_mcp_communication():
                 if "result" in tools_data and "tools" in tools_data["result"]:
                     tools_count = len(tools_data["result"]["tools"])
                     print(f"✅ Server returned {tools_count} tools")
-                    
+
                     # Show first few tools
                     for i, tool in enumerate(tools_data["result"]["tools"][:3]):
                         print(f"   📋 {tool['name']}: {tool['description']}")
-                    
+
                     if tools_count > 3:
                         print(f"   ... and {tools_count - 3} more tools")
-                    
+
                     return True
                 else:
                     print("❌ Invalid tools response format")
@@ -92,11 +88,11 @@ async def test_mcp_communication():
         else:
             print("❌ No tools response from server")
             return False
-            
+
     except Exception as e:
         print(f"❌ Error during test: {e}")
         return False
-        
+
     finally:
         # Clean up
         process.terminate()
@@ -109,8 +105,8 @@ async def test_mcp_communication():
 async def main():
     """Run the MCP protocol test."""
     success = await test_mcp_communication()
-    
-    print(f"\n🎯 Test Result")
+
+    print("\n🎯 Test Result")
     print("=" * 20)
     if success:
         print("✅ MCP Protocol Test PASSED")
@@ -119,9 +115,9 @@ async def main():
         print("1. Restart Claude Code")
         print("2. Try: 'Can you list available Ignition tools?'")
     else:
-        print("❌ MCP Protocol Test FAILED") 
+        print("❌ MCP Protocol Test FAILED")
         print("🔧 Check server configuration and try again")
-        
+
     return success
 
 
