@@ -1,0 +1,260 @@
+{
+  "total_tools": 42,
+  "tools_by_category": {
+    "v1": 42
+  },
+  "tools": [
+    {
+      "name": "put_activation_activate_key",
+      "path": "/data/api/v1/activation/activate/{key}",
+      "method": "PUT",
+      "description": "Activate License"
+    },
+    {
+      "name": "get_activation_is_online",
+      "path": "/data/api/v1/activation/is-online",
+      "method": "GET",
+      "description": "Check Gateway Online Status"
+    },
+    {
+      "name": "post_activation_offline_activate",
+      "path": "/data/api/v1/activation/offline/activate",
+      "method": "POST",
+      "description": "Submit Offline Activation"
+    },
+    {
+      "name": "get_activation_offline_activate_request_key",
+      "path": "/data/api/v1/activation/offline/activate-request/{key}",
+      "method": "GET",
+      "description": "Generate Offline Activation Request"
+    },
+    {
+      "name": "post_activation_offline_unactivate_key",
+      "path": "/data/api/v1/activation/offline/unactivate/{key}",
+      "method": "POST",
+      "description": "Unactivate License (Offline)"
+    },
+    {
+      "name": "put_activation_reactivate_key",
+      "path": "/data/api/v1/activation/reactivate/{key}",
+      "method": "PUT",
+      "description": "Re-Activate License"
+    },
+    {
+      "name": "post_activation_unactivate_key",
+      "path": "/data/api/v1/activation/unactivate/{key}",
+      "method": "POST",
+      "description": "Unactivate License"
+    },
+    {
+      "name": "get_backup",
+      "path": "/data/api/v1/backup",
+      "method": "GET",
+      "description": "Get Gateway Backup"
+    },
+    {
+      "name": "post_backup",
+      "path": "/data/api/v1/backup",
+      "method": "POST",
+      "description": "Restore Gateway Backup"
+    },
+    {
+      "name": "get_logs",
+      "path": "/data/api/v1/logs",
+      "method": "GET",
+      "description": "Logs"
+    },
+    {
+      "name": "get_logs_download",
+      "path": "/data/api/v1/logs/download",
+      "method": "GET",
+      "description": "Download Logs"
+    },
+    {
+      "name": "post_logs_levelreset",
+      "path": "/data/api/v1/logs/levelreset",
+      "method": "POST",
+      "description": "Reset Logger Levels"
+    },
+    {
+      "name": "get_logs_loggers",
+      "path": "/data/api/v1/logs/loggers",
+      "method": "GET",
+      "description": "Loggers"
+    },
+    {
+      "name": "post_logs_loggers_loggerName",
+      "path": "/data/api/v1/logs/loggers/{loggerName}",
+      "method": "POST",
+      "description": "Set Logger Level"
+    },
+    {
+      "name": "post_logs_monitoring_session",
+      "path": "/data/api/v1/logs/monitoring-session",
+      "method": "POST",
+      "description": "Monitoring Session Logs"
+    },
+    {
+      "name": "post_logs_properties",
+      "path": "/data/api/v1/logs/properties",
+      "method": "POST",
+      "description": "Modify Logger Context Properties (Bulk)"
+    },
+    {
+      "name": "get_logs_properties_applied",
+      "path": "/data/api/v1/logs/properties/applied",
+      "method": "GET",
+      "description": "Applied Logger Context Properties"
+    },
+    {
+      "name": "get_logs_properties_registered",
+      "path": "/data/api/v1/logs/properties/registered",
+      "method": "GET",
+      "description": "Registered Logger Context Properties"
+    },
+    {
+      "name": "post_logs_properties_key",
+      "path": "/data/api/v1/logs/properties/{key}",
+      "method": "POST",
+      "description": "Add Logger Context Property"
+    },
+    {
+      "name": "delete_logs_properties_key",
+      "path": "/data/api/v1/logs/properties/{key}",
+      "method": "DELETE",
+      "description": "Remove Logger Context Property"
+    },
+    {
+      "name": "get_modules_certificate",
+      "path": "/data/api/v1/modules/certificate",
+      "method": "GET",
+      "description": "View Certificate Information"
+    },
+    {
+      "name": "post_modules_certificate",
+      "path": "/data/api/v1/modules/certificate",
+      "method": "POST",
+      "description": "Accept Certificate"
+    },
+    {
+      "name": "get_modules_eula",
+      "path": "/data/api/v1/modules/eula",
+      "method": "GET",
+      "description": "View EULA"
+    },
+    {
+      "name": "post_modules_eula",
+      "path": "/data/api/v1/modules/eula",
+      "method": "POST",
+      "description": "Accept EULA"
+    },
+    {
+      "name": "get_modules_healthy",
+      "path": "/data/api/v1/modules/healthy",
+      "method": "GET",
+      "description": "All Healthy Modules"
+    },
+    {
+      "name": "post_modules_install",
+      "path": "/data/api/v1/modules/install",
+      "method": "POST",
+      "description": "Install Module"
+    },
+    {
+      "name": "get_modules_quarantined",
+      "path": "/data/api/v1/modules/quarantined",
+      "method": "GET",
+      "description": "Quarantined Modules"
+    },
+    {
+      "name": "put_modules_toggle_state",
+      "path": "/data/api/v1/modules/toggle-state",
+      "method": "PUT",
+      "description": "Toggle Module State"
+    },
+    {
+      "name": "delete_modules_uninstall",
+      "path": "/data/api/v1/modules/uninstall",
+      "method": "DELETE",
+      "description": "Uninstall Module[s]"
+    },
+    {
+      "name": "post_modules_upload",
+      "path": "/data/api/v1/modules/upload",
+      "method": "POST",
+      "description": "Upload Module"
+    },
+    {
+      "name": "post_projects",
+      "path": "/data/api/v1/projects",
+      "method": "POST",
+      "description": "Create Project"
+    },
+    {
+      "name": "post_projects_copy",
+      "path": "/data/api/v1/projects/copy",
+      "method": "POST",
+      "description": "Copy Project"
+    },
+    {
+      "name": "get_projects_export_name",
+      "path": "/data/api/v1/projects/export/{name}",
+      "method": "GET",
+      "description": "Export Project"
+    },
+    {
+      "name": "get_projects_find_name",
+      "path": "/data/api/v1/projects/find/{name}",
+      "method": "GET",
+      "description": "Project Details"
+    },
+    {
+      "name": "post_projects_import_name",
+      "path": "/data/api/v1/projects/import/{name}",
+      "method": "POST",
+      "description": "Import Project"
+    },
+    {
+      "name": "get_projects_list",
+      "path": "/data/api/v1/projects/list",
+      "method": "GET",
+      "description": "List All Projects"
+    },
+    {
+      "name": "get_projects_names",
+      "path": "/data/api/v1/projects/names",
+      "method": "GET",
+      "description": "List All Project Names"
+    },
+    {
+      "name": "get_projects_parents",
+      "path": "/data/api/v1/projects/parents",
+      "method": "GET",
+      "description": "List All Valid Parent Projects"
+    },
+    {
+      "name": "get_projects_parents_name",
+      "path": "/data/api/v1/projects/parents/{name}",
+      "method": "GET",
+      "description": "List Valid Parent Project Names For Project"
+    },
+    {
+      "name": "post_projects_rename_name",
+      "path": "/data/api/v1/projects/rename/{name}",
+      "method": "POST",
+      "description": "Rename Project"
+    },
+    {
+      "name": "put_projects_name",
+      "path": "/data/api/v1/projects/{name}",
+      "method": "PUT",
+      "description": "Modify Project"
+    },
+    {
+      "name": "delete_projects_name",
+      "path": "/data/api/v1/projects/{name}",
+      "method": "DELETE",
+      "description": "Delete an Ignition Project"
+    }
+  ]
+}

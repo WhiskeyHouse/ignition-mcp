@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ignition-http-mcp": {
+      "command": "/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/.venv/bin/python",
+      "args": ["http_mcp_server.py"],
+      "env": {}
+    }
+  }
+}

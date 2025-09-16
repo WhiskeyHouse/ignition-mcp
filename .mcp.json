@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ignition-mcp": {
+      "command": "/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/.venv/bin/python",
+      "args": ["-m", "ignition_mcp.main"],
+      "env": {
+        "PYTHONPATH": "/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/src"
+      }
+    }
+  }
+}

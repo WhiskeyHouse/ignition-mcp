@@ -1,12 +1,9 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
-*.py[codz]
+*.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
+>>>>>>> 6672780 (feat: initial commit)
 .Python
 build/
 develop-eggs/
@@ -27,8 +24,6 @@ share/python-wheels/
 MANIFEST
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -46,7 +41,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.py.cover
+*.py,cover
 .hypothesis/
 .pytest_cache/
 cover/
@@ -137,6 +132,8 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+# Environment variables
+.env
 .venv
 env/
 venv/
@@ -205,3 +202,18 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
