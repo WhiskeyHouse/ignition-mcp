@@ -3,7 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
->>>>>>> 6672780 (feat: initial commit)
 .Python
 build/
 develop-eggs/
@@ -132,8 +131,6 @@ celerybeat.pid
 # Environments
 .env
 .envrc
-# Environment variables
-.env
 .venv
 env/
 venv/
@@ -170,7 +167,6 @@ cython_debug/
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
 
 # Abstra
 # Abstra is an AI-powered process automation framework.
@@ -183,7 +179,6 @@ cython_debug/
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
 #  and can be added to the global gitignore or merged into this file. However, if you prefer, 
 #  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
 
 # Ruff stuff:
 .ruff_cache/
