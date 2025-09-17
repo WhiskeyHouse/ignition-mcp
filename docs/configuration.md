@@ -87,6 +87,26 @@ IGNITION_MCP_SERVER_HOST=0.0.0.0
 IGNITION_MCP_SERVER_PORT=9000
 ```
 
+### WebDev Tag Management
+
+If your Ignition project exposes WebDev resources for tag operations, configure the following:
+
+#### `IGNITION_MCP_WEBDEV_TAG_ENDPOINT`
+- **Description**: Resource path relative to `/system/webdev` that will receive tag requests
+- **Default**: `""` (disabled)
+- **Example**: `project/tagWriter`
+
+#### `IGNITION_MCP_WEBDEV_TAG_METHOD`
+- **Description**: Default HTTP method used when calling the WebDev resource
+- **Default**: `POST`
+- **Options**: `POST`, `PUT`, `PATCH`, `DELETE`
+
+```bash
+# Example WebDev configuration
+IGNITION_MCP_WEBDEV_TAG_ENDPOINT=project/tagWriter
+IGNITION_MCP_WEBDEV_TAG_METHOD=POST
+```
+
 ## Configuration Files
 
 ### `.env` File
@@ -97,6 +117,10 @@ Create a `.env` file in the project root for local configuration:
 # Gateway Settings
 IGNITION_MCP_IGNITION_GATEWAY_URL=http://localhost:8088
 IGNITION_MCP_IGNITION_API_KEY=your_api_key_here
+
+# WebDev Tag Endpoint
+IGNITION_MCP_WEBDEV_TAG_ENDPOINT=project/tagWriter
+IGNITION_MCP_WEBDEV_TAG_METHOD=POST
 
 # Server Settings  
 IGNITION_MCP_SERVER_HOST=127.0.0.1

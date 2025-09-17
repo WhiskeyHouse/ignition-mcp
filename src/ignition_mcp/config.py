@@ -23,6 +23,18 @@ class Settings(BaseSettings):
         default="", description="API key for Ignition Gateway REST API authentication"
     )
 
+    webdev_tag_endpoint: str = Field(
+        default="",
+        description=(
+            "WebDev resource path (relative to /system/webdev) that handles tag create/update"
+        ),
+    )
+
+    webdev_tag_method: str = Field(
+        default="POST",
+        description="Default HTTP method to use for WebDev tag operations",
+    )
+
     server_host: str = Field(default="127.0.0.1", description="Host to bind the MCP server to")
 
     server_port: int = Field(default=8000, description="Port to bind the MCP server to")

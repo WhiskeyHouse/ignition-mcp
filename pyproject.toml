@@ -11,6 +11,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "mcp>=1.0.0",
+    "fastmcp>=2.12.3",
 ]
 
 [project.optional-dependencies]

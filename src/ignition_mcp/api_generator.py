@@ -102,6 +102,16 @@ class IgnitionAPIGenerator:
             "/data/api/v1/activation",
             "/data/api/v1/backup",
             "/data/api/v1/logs",
+            "/data/api/v1/resources/delete/ignition/secret-provider",
+            "/data/api/v1/resources/find/ignition/secret-provider",
+            "/data/api/v1/resources/ignition/secret-provider",
+            "/data/api/v1/resources/list/ignition/secret-provider",
+            "/data/api/v1/resources/names/ignition/secret-provider",
+            "/data/api/v1/resources/rename/ignition/secret-provider",
+            "/data/api/v1/resources/type/ignition/secret-provider",
+            "/data/api/v1/secret-providers",
+            "/data/api/v1/scan",
+            "/data/api/v1/scan-lock",
         ]
 
         # Include if path matches management patterns

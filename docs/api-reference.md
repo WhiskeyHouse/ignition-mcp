@@ -154,6 +154,66 @@ async with IgnitionClient() as client:
     result = await client.get_gateway_status()
 ```
 
+##### `call_webdev()`
+```python
+async def call_webdev(
+    self,
+    resource_path: str | None = None,
+    method: str = "POST",
+    *,
+    json: Any | None = None,
+    params: Dict[str, Any] | None = None,
+    headers: Dict[str, str] | None = None,
+) -> Dict[str, Any]
+```
+
+**Description**: Invoke a WebDev resource on the Ignition Gateway using the configured authentication.
+
+**Parameters**:
+- `resource_path` (optional): Overrides the configured WebDev resource path
+- `method` (optional): HTTP verb to use. Defaults to the configured method or `POST`
+- `json` (optional): JSON payload to send in the request body
+- `params` (optional): Query string parameters
+- `headers` (optional): Additional headers to merge with authentication headers
+
+**Returns**: Parsed JSON response or a status dictionary
+
+##### `create_or_update_tag()`
+```python
+async def create_or_update_tag(
+    self,
+    tag_path: str | None,
+    value: Any = None,
+    *,
+    data_type: str | None = None,
+    attributes: Dict[str, Any] | None = None,
+    resource_path: str | None = None,
+    method: str | None = None,
+    payload_override: Dict[str, Any] | list[Any] | None = None,
+    query_params: Dict[str, Any] | None = None,
+    headers: Dict[str, str] | None = None,
+    value_timestamp: str | None = None,
+    quality: str | None = None,
+) -> Dict[str, Any]
+```
+
+**Description**: Helper that constructs a tag definition payload and forwards it to the configured WebDev endpoint.
+
+**Parameters**:
+- `tag_path`: Fully qualified tag path, required unless `payload_override` is provided
+- `value`: Desired tag value (can be `None`)
+- `data_type` (optional): Ignition data type string
+- `attributes` (optional): Additional tag attributes
+- `resource_path` (optional): Override WebDev resource path for this call
+- `method` (optional): Override HTTP method
+- `payload_override` (optional): Custom payload to send verbatim instead of building one automatically
+- `query_params` (optional): Query parameters for the request
+- `headers` (optional): Additional request headers
+- `value_timestamp` (optional): ISO timestamp to associate with the value
+- `quality` (optional): Quality code string
+
+**Returns**: Parsed JSON response or status dictionary from the WebDev endpoint
+
 ##### `get_gateway_status()`
 ```python
 async def get_gateway_status(self) -> Dict[str, Any]
@@ -232,6 +292,8 @@ class IgnitionTools:
 **Attributes**:
 - `generator: IgnitionAPIGenerator` - API tool generator
 - `tools_cache: List[Dict[str, Any]] | None` - Cached tool definitions
+- `custom_tool_defs: Dict[str, Dict[str, Any]]` - Definitions for handcrafted tools
+- `custom_tool_handlers: Dict[str, Callable[..., Awaitable[CallToolResult]]]` - Handler mapping for custom tools
 
 ##### `__init__()`
 ```python
@@ -245,7 +307,7 @@ def __init__(self) -> None
 def get_tools(self) -> List[Tool]
 ```
 
-**Description**: Get list of MCP tools from OpenAPI spec.
+**Description**: Get list of MCP tools from the OpenAPI spec and handcrafted additions.
 
 **Returns**: List of MCP Tool objects
 
@@ -261,7 +323,7 @@ print(f"Available tools: {len(tools)}")
 async def call_tool(self, name: str, arguments: Dict[str, Any]) -> CallToolResult
 ```
 
-**Description**: Execute an Ignition Gateway API call.
+**Description**: Execute an Ignition Gateway API call or dispatch to a custom handler.
 
 **Parameters**:
 - `name`: Tool name to execute
@@ -283,7 +345,7 @@ result = await tools_manager.call_tool(
 def get_available_tools_summary(self) -> Dict[str, Any]
 ```
 
-**Description**: Get a summary of available tools organized by category.
+**Description**: Get a summary of generated and custom tools organized by category.
 
 **Returns**: Dictionary with tool categories and counts
 

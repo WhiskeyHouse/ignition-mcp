@@ -83,10 +83,10 @@ class IgnitionHTTPMCPServer:
                 content=[TextContent(type="text", text=f"Unknown tool: {name}")], isError=True
             )
 
-    async def handle_sse(self, request):
-        """Handle SSE connection for MCP."""
-        transport = SseServerTransport("/message")
-        async with transport.connect_sse(request) as streams:
+    async def handle_sse(self, scope, receive, send):
+        """Handle SSE connection for MCP using ASGI signature."""
+        transport = SseServerTransport("/sse")
+        async with transport.connect_sse(scope, receive, send) as streams:
             await self.server.run(
                 streams[0], streams[1], self.server.create_initialization_options()
             )
@@ -94,7 +94,7 @@ class IgnitionHTTPMCPServer:
     def create_app(self):
         """Create Starlette application."""
         routes = [
-            Route("/sse", self.handle_sse),
+            Route("/sse", self.handle_sse, methods=["GET", "POST", "OPTIONS"]),
         ]
 
         app = Starlette(routes=routes)

@@ -65,13 +65,84 @@ class IgnitionClient:
             return result
         return {"status": "success", "content": response.text}
 
+    def _build_webdev_path(self, resource_path: Optional[str] = None) -> str:
+        """Construct the fully qualified WebDev path."""
+        resource = (resource_path or settings.webdev_tag_endpoint).lstrip("/")
+        if not resource:
+            raise ValueError(
+                "WebDev tag endpoint not configured. Set IGNITION_MCP_WEBDEV_TAG_ENDPOINT or"
+                " provide resourcePath."
+            )
+        return f"/system/webdev/{resource}"
+
+    async def call_webdev(
+        self,
+        resource_path: Optional[str] = None,
+        method: str = "POST",
+        *,
+        json: Optional[Any] = None,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Call a WebDev endpoint on the Ignition Gateway."""
+        path = self._build_webdev_path(resource_path)
+        request_headers: Dict[str, str] = headers.copy() if headers else {}
+        return await self._request(method.upper(), path, json=json, params=params, headers=request_headers)
+
+    async def create_or_update_tag(
+        self,
+        tag_path: Optional[str],
+        value: Any = None,
+        *,
+        data_type: Optional[str] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        resource_path: Optional[str] = None,
+        method: Optional[str] = None,
+        payload_override: Optional[Any] = None,
+        query_params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        value_timestamp: Optional[str] = None,
+        quality: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create or update a tag via the configured WebDev endpoint."""
+
+        if payload_override is not None:
+            payload = payload_override
+        else:
+            if not tag_path:
+                raise ValueError("tag_path is required when payloadOverride is not provided")
+            payload = {"path": tag_path, "value": value}
+            if data_type:
+                payload["dataType"] = data_type
+            if attributes:
+                payload["attributes"] = attributes
+            if value_timestamp:
+                payload["valueTimestamp"] = value_timestamp
+            if quality:
+                payload["quality"] = quality
+
+        http_method = (method or settings.webdev_tag_method or "POST").upper()
+        return await self.call_webdev(
+            resource_path=resource_path,
+            method=http_method,
+            json=payload,
+            params=query_params,
+            headers=headers,
+        )
+
     async def get_gateway_status(self) -> Dict[str, Any]:
         """Get gateway status information."""
         return await self._request("GET", "/system/gateway-network/remote-servers/status")
 
     async def get_openapi_spec(self) -> Dict[str, Any]:
         """Get OpenAPI specification."""
-        return await self._request("GET", "/openapi.json")
+        try:
+            return await self._request("GET", "/openapi.json")
+        except Exception as e:
+            # If OpenAPI spec is not accessible (403 Forbidden), return empty spec
+            # This allows the client to continue working with direct endpoint calls
+            print(f"Warning: OpenAPI spec not accessible: {e}")
+            return {"openapi": "3.0.0", "info": {"title": "Ignition Gateway API", "version": "1.0.0"}, "paths": {}}
 
     async def close(self) -> None:
         """Close the HTTP client."""

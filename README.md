@@ -61,6 +61,9 @@ cp .env.example .env
 # Edit with your Ignition Gateway details
 IGNITION_MCP_IGNITION_GATEWAY_URL=http://localhost:8088
 IGNITION_MCP_IGNITION_API_KEY=your_api_key_here
+# Optional: configure WebDev endpoint used for tag management
+IGNITION_MCP_WEBDEV_TAG_ENDPOINT=project/tagWriter
+IGNITION_MCP_WEBDEV_TAG_METHOD=POST
 ```
 
 ### 3. Test & Run
@@ -112,6 +115,9 @@ Add to your Claude Desktop configuration:
 
 # Get recent logs
 {"tool": "get_logs", "arguments": {"limit": 100, "minLevel": "INFO"}}
+
+# Create or update a tag through a WebDev endpoint
+{"tool": "create_or_update_tag", "arguments": {"tagPath": "[default]MyFolder/NewTag", "value": 123, "dataType": "Integer"}}
 ```
 
 ## 🤝 Contributing
