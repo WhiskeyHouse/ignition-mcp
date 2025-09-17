@@ -151,9 +151,7 @@ class IgnitionTools:
                 "Error executing create_or_update_tag. Please verify the WebDev configuration."
             )
 
-        return CallToolResult(
-            content=[TextContent(type="text", text=json.dumps(result, indent=2))]
-        )
+        return CallToolResult(content=[TextContent(type="text", text=json.dumps(result, indent=2))])
 
     def get_tools(self) -> List[Tool]:
         """Get list of MCP tools from OpenAPI spec."""

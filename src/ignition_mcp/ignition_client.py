@@ -87,7 +87,9 @@ class IgnitionClient:
         """Call a WebDev endpoint on the Ignition Gateway."""
         path = self._build_webdev_path(resource_path)
         request_headers: Dict[str, str] = headers.copy() if headers else {}
-        return await self._request(method.upper(), path, json=json, params=params, headers=request_headers)
+        return await self._request(
+            method.upper(), path, json=json, params=params, headers=request_headers
+        )
 
     async def create_or_update_tag(
         self,
@@ -142,7 +144,11 @@ class IgnitionClient:
             # If OpenAPI spec is not accessible (403 Forbidden), return empty spec
             # This allows the client to continue working with direct endpoint calls
             print(f"Warning: OpenAPI spec not accessible: {e}")
-            return {"openapi": "3.0.0", "info": {"title": "Ignition Gateway API", "version": "1.0.0"}, "paths": {}}
+            return {
+                "openapi": "3.0.0",
+                "info": {"title": "Ignition Gateway API", "version": "1.0.0"},
+                "paths": {},
+            }
 
     async def close(self) -> None:
         """Close the HTTP client."""
