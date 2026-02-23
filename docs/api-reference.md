@@ -1,572 +1,398 @@
 # API Reference
 
-This document provides comprehensive API documentation for all modules in the Ignition MCP Server.
+Complete reference for all 37 tools provided by Ignition MCP Server.
 
-## Module Overview
+## Tool Summary
 
-The Ignition MCP Server consists of several key modules:
+| Category | Tool | Transport | Description |
+|----------|------|-----------|-------------|
+| **Gateway** | `get_gateway_info` | Native REST | Version, edition, state, uptime |
+| | `get_module_health` | Native REST | All modules and health status |
+| | `get_gateway_logs` | Native REST | Recent gateway log entries |
+| | `get_database_connections` | Native REST | Database connection status |
+| | `get_opc_connections` | Native REST | OPC-UA/COM connection state |
+| | `get_system_metrics` | Native REST | CPU, memory, threads, sessions |
+| **Projects** | `list_projects` | Native REST | All projects with metadata |
+| | `get_project` | Native REST | Single project details |
+| | `create_project` | Native REST | Create new project |
+| | `delete_project` | Native REST | Delete project (irreversible) |
+| | `copy_project` | Native REST | Clone project |
+| | `rename_project` | Native REST | Rename project |
+| | `export_project` | Native REST | Export as base64 ZIP |
+| | `import_project` | Native REST | Import from base64 ZIP |
+| **Resources** | `list_project_resources` | Native REST | List views, scripts, etc. |
+| | `get_project_resource` | Native REST | Fetch resource content |
+| | `set_project_resource` | Native REST | Create or overwrite resource |
+| | `delete_project_resource` | Native REST | Delete resource |
+| **Designers** | `list_designers` | Native REST | Active Designer sessions |
+| **Tag Providers** | `list_tag_providers` | Native REST | All configured providers |
+| | `get_tag_provider` | Native REST | Provider configuration |
+| | `create_tag_provider` | Native REST | Create provider |
+| | `delete_tag_provider` | Native REST | Delete provider + all tags |
+| **Tags** | `browse_tags` | Native REST | Tag tree structure (not values) |
+| | `read_tags` | WebDev | Runtime tag values |
+| | `write_tag` | WebDev | Write tag value |
+| | `get_tag_config` | WebDev | Tag configuration object |
+| | `create_tags` | WebDev | Create tags from config |
+| | `edit_tags` | WebDev | Merge-update tag config |
+| | `delete_tags` | WebDev | Delete tags by path |
+| | `list_udt_types` | WebDev | List UDT type definitions |
+| | `get_udt_definition` | WebDev | Full UDT schema |
+| **Alarms** | `get_active_alarms` | WebDev | Current active alarms |
+| | `get_alarm_history` | WebDev | Alarm journal entries |
+| | `acknowledge_alarms` | WebDev | Acknowledge by event ID |
+| **Historian** | `get_tag_history` | WebDev | Historical tag values |
+| **Execution** | `run_gateway_script` | WebDev | Execute Python on gateway (disabled by default) |
 
-- **[`ignition_mcp.main`](#ignition_mcpmain)** - Main entry point
-- **[`ignition_mcp.server`](#ignition_mcpserver)** - MCP server implementation  
-- **[`ignition_mcp.ignition_client`](#ignition_mcpignition_client)** - Gateway REST API client
-- **[`ignition_mcp.ignition_tools`](#ignition_mcpignition_tools)** - MCP tools implementation
-- **[`ignition_mcp.api_generator`](#ignition_mcpapi_generator)** - OpenAPI to MCP tool generator
-- **[`ignition_mcp.config`](#ignition_mcpconfig)** - Configuration management
-
----
-
-## `ignition_mcp.main`
-
-Main entry point for the Ignition MCP server.
-
-### Functions
-
-#### `main()`
-```python
-async def main() -> None
-```
-
-**Description**: Run the Ignition MCP server.
-
-**Returns**: None
-
-**Usage**:
-```bash
-python -m ignition_mcp.main
-```
-
----
-
-## `ignition_mcp.server`
-
-MCP server implementation for Ignition Gateway automation.
-
-### Classes
-
-#### `IgnitionMCPServer`
-```python
-class IgnitionMCPServer:
-    """MCP server for Ignition Gateway automation."""
-```
-
-**Attributes**:
-- `server: Server` - MCP server instance
-- `ignition_client: IgnitionClient | None` - Gateway client instance  
-- `ignition_tools: IgnitionTools | None` - Tools manager instance
-
-##### `__init__()`
-```python
-def __init__(self) -> None
-```
-
-**Description**: Initialize the MCP server with handlers.
-
-##### `run()`
-```python
-async def run(self) -> None
-```
-
-**Description**: Run the MCP server with stdio transport.
-
-**Usage**:
-```python
-server = IgnitionMCPServer()
-await server.run()
-```
-
-### Available Tools
-
-The server provides the following base tools:
-
-#### `get_gateway_status`
-- **Description**: Get Ignition Gateway status information
-- **Parameters**: None
-- **Returns**: Gateway status JSON
-
-#### `test_connection`  
-- **Description**: Test connection to Ignition Gateway
-- **Parameters**: None
-- **Returns**: Connection test result
-
-#### `list_available_tools`
-- **Description**: List all available Ignition Gateway API tools by category
-- **Parameters**: None
-- **Returns**: Categorized tool summary
+**Native REST** = uses Ignition's built-in REST API, no WebDev setup needed.
+**WebDev** = requires a gateway-side WebDev script. See [webdev-setup.md](webdev-setup.md).
 
 ---
 
-## `ignition_mcp.ignition_client`
+## Gateway Tools
 
-Client for interacting with Ignition Gateway REST API.
+### `get_gateway_info`
+Get Ignition Gateway version, edition, state, and uptime. No parameters required.
 
-### Classes
+**Returns:** `{version, edition, state, uptime, ...}`
 
-#### `IgnitionClient`
-```python
-class IgnitionClient:
-    """Client for interacting with Ignition Gateway REST API."""
-```
+### `get_module_health`
+List all installed Ignition modules and their health status.
 
-**Attributes**:
-- `gateway_url: str` - Base gateway URL
-- `username: str` - Gateway username
-- `password: str` - Gateway password
-- `api_key: str` - Gateway API key
+**Returns:** `[{name, version, state, error?}, ...]`
 
-##### `__init__()`
-```python
-def __init__(
-    self,
-    gateway_url: str = None,
-    username: str = None,
-    password: str = None,
-    api_key: str = None
-) -> None
-```
+### `get_gateway_logs`
+Fetch recent gateway log entries.
 
-**Parameters**:
-- `gateway_url` (optional): Gateway base URL, defaults to settings
-- `username` (optional): Gateway username, defaults to settings
-- `password` (optional): Gateway password, defaults to settings  
-- `api_key` (optional): Gateway API key, defaults to settings
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `level` | string | `"INFO"` | Min log level: TRACE, DEBUG, INFO, WARN, ERROR |
+| `logger_name` | string | `null` | Filter by logger name |
+| `limit` | int | `100` | Max entries (1-1000) |
 
-**Usage**:
-```python
-# Use default settings
-client = IgnitionClient()
+**Returns:** `[{timestamp, level, logger, message}, ...]`
 
-# Override specific settings
-client = IgnitionClient(
-    gateway_url="http://custom-gateway:8088",
-    api_key="custom_api_key"
-)
-```
+### `get_database_connections`
+List all database connections and their current status. No parameters.
 
-##### Context Manager Support
-```python
-async def __aenter__(self) -> "IgnitionClient"
-async def __aexit__(self, exc_type, exc_val, exc_tb) -> None
-```
+**Returns:** `[{name, driver, state, error?}, ...]`
 
-**Usage**:
-```python
-async with IgnitionClient() as client:
-    result = await client.get_gateway_status()
-```
+### `get_opc_connections`
+List all OPC-UA/COM connections and their state. No parameters.
 
-##### `get_gateway_status()`
-```python
-async def get_gateway_status(self) -> Dict[str, Any]
-```
+**Returns:** `[{name, type, connected, state}, ...]`
 
-**Description**: Get gateway status information.
+### `get_system_metrics`
+Get gateway system metrics: CPU, memory, threads, active sessions. No parameters.
 
-**Returns**: Gateway status data
-
-**Raises**: `httpx.HTTPStatusError` on API errors
-
-##### `get_openapi_spec()`
-```python
-async def get_openapi_spec(self) -> Dict[str, Any]
-```
-
-**Description**: Get OpenAPI specification from gateway.
-
-**Returns**: OpenAPI specification JSON
-
-**Raises**: `httpx.HTTPStatusError` on API errors
-
-##### `close()`
-```python
-async def close(self) -> None
-```
-
-**Description**: Close the HTTP client connection.
-
-### Private Methods
-
-#### `_create_auth_header()`
-```python
-def _create_auth_header(self) -> str
-```
-
-**Description**: Create authentication header, preferring API key.
-
-**Returns**: Authorization header string
-
-#### `_request()`
-```python
-async def _request(
-    self,
-    method: str,
-    endpoint: str,
-    **kwargs
-) -> Dict[str, Any]
-```
-
-**Description**: Make authenticated request to Ignition Gateway API.
-
-**Parameters**:
-- `method`: HTTP method (GET, POST, etc.)
-- `endpoint`: API endpoint path
-- `**kwargs`: Additional request parameters
-
-**Returns**: Response JSON data
-
-**Raises**: `httpx.HTTPStatusError` on API errors
+**Returns:** `{cpu, memory, threads, sessions, ...}`
 
 ---
 
-## `ignition_mcp.ignition_tools`
+## Project Tools
 
-Handles Ignition Gateway API tools for MCP server.
+### `list_projects`
+List all Ignition projects. No parameters.
 
-### Classes
+**Returns:** `[{name, title, description, enabled, parent}, ...]`
 
-#### `IgnitionTools`
-```python
-class IgnitionTools:
-    """Handles Ignition Gateway API tools for MCP server."""
-```
+### `get_project`
+Get full details of a specific project.
 
-**Attributes**:
-- `generator: IgnitionAPIGenerator` - API tool generator
-- `tools_cache: List[Dict[str, Any]] | None` - Cached tool definitions
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | yes | Exact project name |
 
-##### `__init__()`
-```python
-def __init__(self) -> None
-```
+### `create_project`
 
-**Description**: Initialize tools manager.
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | yes | Unique project name |
+| `title` | string | no | Display title |
+| `description` | string | no | Description |
+| `parent` | string | no | Parent project for inheritance |
+| `enabled` | bool | no | Default: `true` |
 
-##### `get_tools()`
-```python
-def get_tools(self) -> List[Tool]
-```
+### `delete_project`
+**Irreversible.** Consider `export_project` first.
 
-**Description**: Get list of MCP tools from OpenAPI spec.
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `name` | string | yes |
 
-**Returns**: List of MCP Tool objects
+### `copy_project`
 
-**Usage**:
-```python
-tools_manager = IgnitionTools()
-tools = tools_manager.get_tools()
-print(f"Available tools: {len(tools)}")
-```
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `source_name` | string | yes |
+| `new_name` | string | yes |
 
-##### `call_tool()`
-```python
-async def call_tool(self, name: str, arguments: Dict[str, Any]) -> CallToolResult
-```
+### `rename_project`
 
-**Description**: Execute an Ignition Gateway API call.
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `current_name` | string | yes |
+| `new_name` | string | yes |
 
-**Parameters**:
-- `name`: Tool name to execute
-- `arguments`: Tool arguments dictionary
+### `export_project`
+Export project as a base64-encoded ZIP archive.
 
-**Returns**: Tool execution result
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `name` | string | yes |
 
-**Usage**:
-```python
-tools_manager = IgnitionTools()
-result = await tools_manager.call_tool(
-    "test_connection", 
-    {}
-)
-```
+**Returns:** `{filename, content_base64, size_bytes}`
 
-##### `get_available_tools_summary()`
-```python
-def get_available_tools_summary(self) -> Dict[str, Any]
-```
+### `import_project`
+Import from a base64-encoded ZIP archive.
 
-**Description**: Get a summary of available tools organized by category.
-
-**Returns**: Dictionary with tool categories and counts
-
-**Example Return**:
-```python
-{
-    "total_tools": 45,
-    "categories": {
-        "activation": [
-            {
-                "name": "put_activation_activate_key",
-                "description": "Activate license key",
-                "method": "PUT",
-                "path": "/data/api/v1/activation/activate/{key}"
-            }
-        ]
-    }
-}
-```
-
-### Private Methods
-
-#### `_generate_tools_cache()`
-```python
-def _generate_tools_cache(self) -> None
-```
-
-**Description**: Generate and cache tools from OpenAPI spec.
-
-#### `_execute_api_call()`
-```python
-async def _execute_api_call(
-    self, 
-    client: IgnitionClient, 
-    tool_def: Dict[str, Any], 
-    arguments: Dict[str, Any]
-) -> Dict[str, Any]
-```
-
-**Description**: Execute the actual API call with parameter processing.
-
-**Parameters**:
-- `client`: Ignition client instance
-- `tool_def`: Tool definition dictionary
-- `arguments`: Call arguments
-
-**Returns**: API response data
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | yes | Target project name |
+| `zip_base64` | string | yes | Base64 ZIP content from `export_project` |
+| `overwrite` | bool | no | Overwrite existing project. Default: `false` |
 
 ---
 
-## `ignition_mcp.api_generator`
+## Project Resource Tools
 
-Generate MCP tools from OpenAPI specification.
+Project resources are files within a project: Perspective views, scripts, named
+queries, Vision windows, etc.
 
-### Classes
+Resource path format: `{module-id}/{resource-type}/{name}/{filename}`
 
-#### `IgnitionAPIGenerator`
-```python
-class IgnitionAPIGenerator:
-    """Generate MCP tools from Ignition OpenAPI spec."""
-```
+Common prefixes:
+- `com.inductiveautomation.perspective/views/` — Perspective views
+- `com.inductiveautomation.ignition/script-python/` — Project scripts
+- `com.inductiveautomation.ignition/named-query/` — Named queries
 
-**Attributes**:
-- `spec_path: str` - Path to OpenAPI specification file
-- `spec: Dict[str, Any]` - Loaded OpenAPI specification
-- `tools: List[Dict[str, Any]]` - Generated tools list
+### `list_project_resources`
 
-##### `__init__()`
-```python
-def __init__(self, openapi_spec_path: str = None) -> None
-```
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | string | yes | Project name |
+| `path_prefix` | string | no | Filter prefix, e.g. `com.inductiveautomation.perspective/views` |
 
-**Parameters**:
-- `openapi_spec_path` (optional): Path to OpenAPI spec file, defaults to `ignition_openapi.json`
+### `get_project_resource`
 
-##### `generate_tools()`
-```python
-def generate_tools(self) -> List[Dict[str, Any]]
-```
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | string | yes | Project name |
+| `resource_path` | string | yes | Full resource path |
 
-**Description**: Generate MCP tools from the OpenAPI spec.
+### `set_project_resource`
+Create or overwrite a resource. **Overwrites without confirmation.**
 
-**Returns**: List of tool definition dictionaries
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | string | yes | Project name |
+| `resource_path` | string | yes | Full resource path |
+| `content` | any | yes | Resource content (dict for JSON, string for scripts) |
 
-**Tool Definition Structure**:
-```python
-{
-    "name": "tool_name",
-    "description": "Tool description",
-    "inputSchema": {
-        "type": "object",
-        "properties": {...},
-        "required": [...]
-    },
-    "_ignition_path": "/api/path",
-    "_ignition_method": "GET",
-    "_ignition_operation": {...}
-}
-```
+### `delete_project_resource`
+**Irreversible.**
 
-##### `save_tools_summary()`
-```python
-def save_tools_summary(self, output_path: str = "ignition_tools_summary.json") -> Dict[str, Any]
-```
-
-**Description**: Save a summary of generated tools to file.
-
-**Parameters**:
-- `output_path`: Output file path
-
-**Returns**: Summary dictionary
-
-### Private Methods
-
-#### `_load_spec()`
-```python
-def _load_spec(self) -> Dict[str, Any]
-```
-
-**Description**: Load the OpenAPI specification from file.
-
-#### `_sanitize_tool_name()`
-```python
-def _sanitize_tool_name(self, path: str, method: str, operation_id: str = None) -> str
-```
-
-**Description**: Create a valid tool name from path and method.
-
-#### `_extract_parameters()`
-```python
-def _extract_parameters(self, operation: Dict[str, Any]) -> Dict[str, Any]
-```
-
-**Description**: Extract parameters schema from OpenAPI operation.
-
-#### `_should_include_endpoint()`
-```python
-def _should_include_endpoint(self, path: str, method: str, operation: Dict[str, Any]) -> bool
-```
-
-**Description**: Determine if endpoint should be included as MCP tool.
-
-**Included Patterns**:
-- `/data/api/v1/projects/*` - Project management
-- `/data/api/v1/tags/*` - Tag operations  
-- `/data/api/v1/devices/*` - Device management
-- `/data/api/v1/modules/*` - Module operations
-- `/data/api/v1/activation/*` - License activation
-- `/data/api/v1/backup/*` - Backup operations
-- `/data/api/v1/logs/*` - Log management
-- `/system/gateway/*` - Gateway status
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `project` | string | yes |
+| `resource_path` | string | yes |
 
 ---
 
-## `ignition_mcp.config`
+## Designer Tools
 
-Configuration management for Ignition MCP server.
+### `list_designers`
+List active Designer sessions. No parameters.
 
-### Classes
+**Returns:** `[{user, project, since, address}, ...]`
 
-#### `Settings`
-```python
-class Settings(BaseSettings):
-    """Application settings using Pydantic."""
-```
+---
 
-**Configuration**:
-- `env_file = ".env"` - Environment file location
-- `env_prefix = "IGNITION_MCP_"` - Environment variable prefix
+## Tag Provider Tools
 
-##### Settings Fields
+### `list_tag_providers`
+No parameters. Returns all configured providers.
 
-**Gateway Settings**:
-- `ignition_gateway_url: str` - Gateway URL (default: `"http://localhost:8088"`)
-- `ignition_username: str` - Gateway username (default: `"admin"`)
-- `ignition_password: str` - Gateway password (default: `"password"`)
-- `ignition_api_key: str` - Gateway API key (default: `""`)
+### `get_tag_provider`
 
-**Server Settings**:
-- `server_host: str` - Server host (default: `"127.0.0.1"`)
-- `server_port: int` - Server port (default: `8000`)
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `name` | string | yes |
 
-### Module Variables
+### `create_tag_provider`
 
-#### `settings`
-```python
-settings = Settings()
-```
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | string | required | Provider name |
+| `description` | string | `""` | Description |
+| `provider_type` | string | `"STANDARD"` | STANDARD, REMOTE, or DERIVED |
 
-**Description**: Global settings instance used throughout the application.
+### `delete_tag_provider`
+**Irreversible. Deletes all tags in the provider.**
 
-**Usage**:
-```python
-from ignition_mcp.config import settings
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `name` | string | yes |
 
-print(f"Gateway URL: {settings.ignition_gateway_url}")
-print(f"Server Port: {settings.server_port}")
-```
+---
 
-## Error Handling
+## Tag Tools
 
-### Common Exceptions
+### `browse_tags`
+Browse tag tree structure (names, paths, types) — **not runtime values**.
 
-#### HTTP Errors
-```python
-import httpx
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | string | `""` | Tag path, e.g. `[default]Folder`. Empty = all providers |
+| `depth` | int | `2` | Recursion depth (1-4) |
 
-try:
-    async with IgnitionClient() as client:
-        result = await client.get_gateway_status()
-except httpx.HTTPStatusError as e:
-    print(f"HTTP {e.response.status_code}: {e.response.text}")
-except httpx.ConnectError:
-    print("Failed to connect to gateway")
-```
+### `read_tags`
+Read runtime values. Requires WebDev tag endpoint.
 
-#### Tool Execution Errors
-```python
-result = await tools.call_tool("invalid_tool", {})
-if result.isError:
-    print(f"Tool error: {result.content[0].text}")
-```
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tag_paths` | list[str] | Fully qualified paths, e.g. `["[default]T1"]`. Max 100 |
 
-#### Configuration Errors
-```python
-from pydantic import ValidationError
+**Returns:** `[{path, value, quality, timestamp}, ...]`
 
-try:
-    settings = Settings()
-except ValidationError as e:
-    print(f"Configuration error: {e}")
-```
+### `write_tag`
+Write a value. Requires WebDev tag endpoint.
 
-## Usage Examples
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tag_path` | string | yes | Fully qualified path |
+| `value` | any | yes | Value to write |
+| `data_type` | string | no | Type hint: Int4, Float8, String, Boolean, etc. |
 
-### Basic Client Usage
-```python
-from ignition_mcp.ignition_client import IgnitionClient
+### `get_tag_config`
+Get full tag configuration object (not runtime value). Requires WebDev tagConfig endpoint.
 
-async def main():
-    async with IgnitionClient() as client:
-        # Test connection
-        spec = await client.get_openapi_spec()
-        print(f"API version: {spec.get('info', {}).get('version')}")
-        
-        # Get status
-        status = await client.get_gateway_status()
-        print(f"Gateway status: {status}")
-```
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `tag_path` | string | yes |
 
-### Tool Generation
-```python
-from ignition_mcp.api_generator import IgnitionAPIGenerator
+### `create_tags`
+Create tags (add-only, no overwrite). Requires WebDev tagConfig endpoint.
 
-generator = IgnitionAPIGenerator()
-tools = generator.generate_tools()
-print(f"Generated {len(tools)} tools")
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tags` | list[dict] | yes | Tag config objects with `name`, `tagType`, `dataType` |
+| `provider` | string | no | Tag provider name. Default: `"default"` |
 
-# Save summary
-summary = generator.save_tools_summary()
-print(f"Categories: {list(summary['tools_by_category'].keys())}")
-```
+### `edit_tags`
+Create or update tags with merge semantics. Requires WebDev tagConfig endpoint.
 
-### MCP Server Integration
-```python
-from ignition_mcp.server import IgnitionMCPServer
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tags` | list[dict] | yes | Tag config objects to merge |
+| `provider` | string | no | Tag provider name |
 
-async def main():
-    server = IgnitionMCPServer()
-    await server.run()  # Runs until interrupted
-```
+### `delete_tags`
+Delete tags by path. **Irreversible.** Requires WebDev tagConfig endpoint.
 
-## Type Definitions
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `tag_paths` | list[str] | yes |
 
-### Common Types
-```python
-from typing import Dict, Any, List, Optional
-from mcp.types import Tool, CallToolResult, TextContent
-```
+### `list_udt_types`
+List UDT type definitions. Requires WebDev tagConfig endpoint.
 
-### Tool Definition Type
-```python
-ToolDefinition = Dict[str, Any]  # Generated tool definition
-APIResponse = Dict[str, Any]     # Gateway API response
-ToolArguments = Dict[str, Any]   # Tool input arguments
-```
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `provider` | string | `"default"` |
+
+### `get_udt_definition`
+Get full UDT schema. Requires WebDev tagConfig endpoint.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `udt_path` | string | yes | E.g. `[default]_types_/Motor` |
+
+---
+
+## Alarm Tools
+
+All alarm tools require the WebDev alarm endpoint. See [webdev-setup.md](webdev-setup.md).
+
+### `get_active_alarms`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `source_filter` | string | Filter by source path prefix |
+| `priority_filter` | string | Min priority: Diagnostic, Low, Medium, High, Critical |
+| `state_filter` | string | ActiveUnacked, ActiveAcked, ClearUnacked |
+
+### `get_alarm_history`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `start_time` | string | 24h ago | ISO 8601, e.g. `2024-01-15T08:00:00Z` |
+| `end_time` | string | now | ISO 8601 |
+| `source_filter` | string | — | Filter by source prefix |
+| `priority_filter` | string | — | Min priority |
+| `max_results` | int | `100` | Max entries (1-1000) |
+
+### `acknowledge_alarms`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `event_ids` | list[str] | yes | Alarm event UUIDs from `get_active_alarms` |
+| `ack_note` | string | no | Optional acknowledgement comment |
+
+---
+
+## Historian Tools
+
+### `get_tag_history`
+Query historical tag values. Requires WebDev tagHistory endpoint.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tag_paths` | list[str] | yes | Fully qualified paths (history must be enabled) |
+| `start_time` | string | yes | ISO 8601 start |
+| `end_time` | string | yes | ISO 8601 end |
+| `aggregation` | string | no | LastValue, Average, Minimum, Maximum, Range, Count, etc. Default: `LastValue` |
+| `interval_ms` | int | no | Aggregation interval in ms (≥1000). Omit for natural resolution |
+| `max_results` | int | no | Max data points per tag (1-10000). Default: `1000` |
+
+**Returns:** `{tags: [{path, values: [{t, v}, ...]}, ...], rowCount}`
+
+---
+
+## Execution Tools
+
+### `run_gateway_script`
+
+**Disabled by default.** Must set `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true`.
+
+Requires WebDev scriptExec endpoint and careful security setup. See [webdev-setup.md](webdev-setup.md).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `script` | string | required | Python script to execute |
+| `timeout_secs` | int | `10` | Timeout (1-60 seconds) |
+| `dry_run` | bool | `false` | Preview without executing |
+
+**Returns:** `{result, stdout, error, scriptHash}`
+
+---
+
+## Configuration Reference
+
+All settings use the `IGNITION_MCP_` prefix. See also `src/ignition_mcp/config.py`.
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `IGNITION_MCP_IGNITION_GATEWAY_URL` | `http://localhost:8088` | Gateway base URL |
+| `IGNITION_MCP_IGNITION_USERNAME` | `admin` | Basic auth username |
+| `IGNITION_MCP_IGNITION_PASSWORD` | `password` | Basic auth password |
+| `IGNITION_MCP_IGNITION_API_KEY` | `""` | API key (preferred over basic auth) |
+| `IGNITION_MCP_WEBDEV_TAG_ENDPOINT` | `""` (disabled) | Tag read/write WebDev path (recommended: `Global/GatewayAPI/tags`) |
+| `IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT` | `""` (disabled) | Tag CRUD WebDev path (recommended: `Global/GatewayAPI/tagConfig`) |
+| `IGNITION_MCP_WEBDEV_ALARM_ENDPOINT` | `""` (disabled) | Alarm WebDev path (recommended: `Global/GatewayAPI/alarms`) |
+| `IGNITION_MCP_WEBDEV_TAG_HISTORY_ENDPOINT` | `""` (disabled) | Tag history WebDev path (recommended: `Global/GatewayAPI/tagHistory`) |
+| `IGNITION_MCP_WEBDEV_SCRIPT_EXEC_ENDPOINT` | `""` (disabled) | Script exec WebDev path (recommended: `Global/GatewayAPI/scriptExec`) |
+| `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION` | `false` | Enable `run_gateway_script` |
+| `IGNITION_MCP_SSL_VERIFY` | `true` | Verify SSL certificates |
+| `IGNITION_MCP_SERVER_HOST` | `127.0.0.1` | MCP server bind host |
+| `IGNITION_MCP_SERVER_PORT` | `8007` | MCP server port |

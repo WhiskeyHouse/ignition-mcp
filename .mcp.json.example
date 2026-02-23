@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "ignition-mcp": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "ignition_mcp.main"
+      ],
+      "env": {
+        "IGNITION_MCP_IGNITION_GATEWAY_URL": "https://localhost:9043",
+        "IGNITION_MCP_IGNITION_API_KEY": "your-api-key-here",
+        "IGNITION_MCP_SSL_VERIFY": "false"
+      }
+    }
+  }
+}
