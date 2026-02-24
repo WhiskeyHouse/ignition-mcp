@@ -1,140 +1,162 @@
-# Ignition MCP Server
+# ignition-mcp
 
-A powerful **Model Context Protocol (MCP)** server that provides seamless integration with **Inductiveautomation's Ignition SCADA/MES platform** through its REST API. This enables AI assistants to interact with Ignition Gateway operations for automation, monitoring, and management tasks.
+A **Model Context Protocol (MCP)** server that gives AI assistants a curated,
+developer-oriented interface to the **Ignition Gateway REST API**.
 
-## 🚀 Features
+Built on [FastMCP](https://github.com/jlowin/fastmcp) with 37 hand-crafted tools
+covering gateway management, projects, resources, tag providers, tags, alarms,
+tag history, and script execution.
 
-- **🔌 Automatic API Integration**: Dynamically generates 45+ tools from Ignition's OpenAPI specification
-- **🛡️ Flexible Authentication**: Supports both API keys and basic authentication
-- **📊 Real-time Gateway Management**: Monitor status, manage projects, handle backups, and more
-- **🎯 MCP Protocol**: Full compatibility with Claude Desktop and other MCP clients
-- **⚡ Async Operations**: Built on modern async/await patterns for optimal performance
-- **🔧 Comprehensive Toolset**: Pre-built tools for activation, backups, logs, modules, and projects
+## Tools
 
-## 📋 Tool Categories
+| Category | Tools | Backend |
+|----------|-------|---------|
+| Gateway (6) | `get_gateway_info`, `get_module_health`, `get_gateway_logs`, `get_database_connections`, `get_opc_connections`, `get_system_metrics` | Native REST |
+| Projects (8) | `list_projects`, `get_project`, `create_project`, `delete_project`, `copy_project`, `rename_project`, `export_project`, `import_project` | Native REST |
+| Project Resources (4) | `list_project_resources`, `get_project_resource`, `set_project_resource`, `delete_project_resource` | Native REST |
+| Designers (1) | `list_designers` | Native REST |
+| Tag Providers (4) | `list_tag_providers`, `get_tag_provider`, `create_tag_provider`, `delete_tag_provider` | Native REST |
+| Tag Browse (1) | `browse_tags` | Native REST |
+| Tag Values (2) | `read_tags`, `write_tag` | WebDev |
+| Tag Config (6) | `get_tag_config`, `create_tags`, `edit_tags`, `delete_tags`, `list_udt_types`, `get_udt_definition` | WebDev |
+| Alarms (3) | `get_active_alarms`, `get_alarm_history`, `acknowledge_alarms` | WebDev |
+| Historian (1) | `get_tag_history` | WebDev |
+| Script Execution (1) | `run_gateway_script` (disabled by default) | WebDev |
 
-| Category | Tools | Description |
-|----------|-------|-------------|
-| **🔐 Activation** | 7 tools | License management and gateway activation |
-| **💾 Backup** | 2 tools | Gateway backup creation and restoration |
-| **📋 Logs** | 11 tools | Log retrieval, management, and analysis |
-| **📦 Modules** | 10 tools | Module health checks and certificate management |
-| **🏗️ Projects** | 12 tools | Project creation, import, export, and management |
-| **⚙️ Base Tools** | 3 tools | Connection testing and tool discovery |
+## Requirements
 
-## 🛠️ Requirements
+- Python 3.10+
+- Ignition Gateway 8.3+ with REST API enabled
+- Gateway credentials (API key preferred) or basic auth
 
-- **Python 3.10+**
-- **Ignition Gateway 8.3+** with REST API enabled
-- Valid Ignition Gateway credentials or API key
+## Setup
 
-## 📚 Documentation Structure
-
-This repository includes comprehensive documentation:
-
-- **[Installation Guide](docs/installation.md)** - Step-by-step setup instructions
-- **[Configuration Guide](docs/configuration.md)** - Environment and settings configuration  
-- **[API Reference](docs/api-reference.md)** - Complete API documentation for all modules
-- **[Usage Examples](docs/examples.md)** - Practical examples and tutorials
-- **[Contributing Guide](docs/contributing.md)** - Development guidelines and contribution process
-- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
-
-## 🚀 Quick Start
-
-### 1. Installation
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/ignition-mcp.git
-cd ignition-mcp
+# Install
+uv sync
 
-# Install with uv (recommended)
-uv venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-uv pip install -e .
-```
-
-### 2. Configuration
-```bash
-# Copy environment template
+# Configure
 cp .env.example .env
-
-# Edit with your Ignition Gateway details
-IGNITION_MCP_IGNITION_GATEWAY_URL=http://localhost:8088
-IGNITION_MCP_IGNITION_API_KEY=your_api_key_here
+# Edit .env with your gateway URL and credentials
 ```
 
-### 3. Test & Run
+### Environment Variables
+
+All environment variables are prefixed with `IGNITION_MCP_`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `IGNITION_MCP_IGNITION_GATEWAY_URL` | `http://localhost:8088` | Gateway base URL |
+| `IGNITION_MCP_IGNITION_API_KEY` | *(empty)* | API key auth (preferred over basic auth) |
+| `IGNITION_MCP_IGNITION_USERNAME` | `admin` | Basic auth username |
+| `IGNITION_MCP_IGNITION_PASSWORD` | `password` | Basic auth password |
+| `IGNITION_MCP_SSL_VERIFY` | `true` | Set `false` for self-signed certs |
+| `IGNITION_MCP_WEBDEV_TAG_ENDPOINT` | *(empty)* | WebDev path for `read_tags`/`write_tag` |
+| `IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT` | *(empty)* | WebDev path for tag CRUD |
+| `IGNITION_MCP_WEBDEV_ALARM_ENDPOINT` | *(empty)* | WebDev path for alarm tools |
+| `IGNITION_MCP_WEBDEV_TAG_HISTORY_ENDPOINT` | *(empty)* | WebDev path for `get_tag_history` |
+| `IGNITION_MCP_WEBDEV_SCRIPT_EXEC_ENDPOINT` | *(empty)* | WebDev path for `run_gateway_script` |
+| `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION` | `false` | Set `true` to enable `run_gateway_script` |
+| `IGNITION_MCP_SERVER_HOST` | `127.0.0.1` | MCP server bind host |
+| `IGNITION_MCP_SERVER_PORT` | `8007` | MCP server port |
+
+## Running
+
 ```bash
-# Test connection
-python test_server.py
+# Streamable HTTP (default) — http://localhost:8007/mcp
+uv run python mcp_server.py
 
-# Start MCP server
-python -m ignition_mcp.main
+# stdio transport (for Claude Desktop subprocess mode)
+uv run python mcp_server.py --transport stdio
 ```
 
-## 🔗 Integration with Claude Desktop
+## Client Configuration
 
-Add to your Claude Desktop configuration:
+### Claude Code (`.mcp.json`)
 
 ```json
 {
   "mcpServers": {
     "ignition-mcp": {
-      "command": "python",
-      "args": ["-m", "ignition_mcp.main"],
+      "type": "streamable-http",
+      "url": "http://localhost:8007/mcp"
+    }
+  }
+}
+```
+
+### Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "ignition-mcp": {
+      "command": "uv",
+      "args": ["run", "python", "mcp_server.py", "--transport", "stdio"],
       "cwd": "/path/to/ignition-mcp",
       "env": {
-        "IGNITION_MCP_IGNITION_GATEWAY_URL": "http://localhost:8088",
-        "IGNITION_MCP_IGNITION_API_KEY": "your_api_key"
+        "IGNITION_MCP_IGNITION_GATEWAY_URL": "https://your-gateway:8043",
+        "IGNITION_MCP_IGNITION_API_KEY": "your-api-key"
       }
     }
   }
 }
 ```
 
-## 📖 Example Usage
+## WebDev Prerequisite (tag values, alarms, history, script execution)
 
-```python
-# Test gateway connection
-{"tool": "test_connection", "arguments": {}}
+Several tools require **WebDev module scripts** deployed on the target Ignition gateway.
+The native REST API (`/data/api/v1/`) only covers configuration — it does not support
+runtime tag reads/writes, alarm queries, historian, or script execution.
 
-# Get gateway status
-{"tool": "get_gateway_status", "arguments": {}}
+Tools that require WebDev endpoints:
+- **Tag values**: `read_tags`, `write_tag` → `IGNITION_MCP_WEBDEV_TAG_ENDPOINT`
+- **Tag CRUD**: `get_tag_config`, `create_tags`, `edit_tags`, `delete_tags`, `list_udt_types`, `get_udt_definition` → `IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT`
+- **Alarms**: `get_active_alarms`, `get_alarm_history`, `acknowledge_alarms` → `IGNITION_MCP_WEBDEV_ALARM_ENDPOINT`
+- **Historian**: `get_tag_history` → `IGNITION_MCP_WEBDEV_TAG_HISTORY_ENDPOINT`
+- **Script execution**: `run_gateway_script` → `IGNITION_MCP_WEBDEV_SCRIPT_EXEC_ENDPOINT` + `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true`
 
-# List all available tools
-{"tool": "list_available_tools", "arguments": {}}
+If a WebDev endpoint is not configured, the relevant tools return a clear error with setup instructions.
+See [docs/webdev-setup.md](docs/webdev-setup.md) for gateway-side deployment scripts.
 
-# Activate a license
-{"tool": "put_activation_activate_key", "arguments": {"key": "YOUR-LICENSE-KEY"}}
+## Testing
 
-# Create gateway backup
-{"tool": "get_backup", "arguments": {"includePeerLocal": false}}
+```bash
+# Unit tests (no live gateway needed)
+uv run pytest tests/ -v
 
-# Get recent logs
-{"tool": "get_logs", "arguments": {"limit": 100, "minLevel": "INFO"}}
+# Integration tests (requires running Ignition gateway)
+RUN_LIVE_GATEWAY_TESTS=1 uv run pytest tests/test_integration.py -v
 ```
 
-## 🤝 Contributing
+## Architecture
 
-We welcome contributions! Please see our [Contributing Guide](docs/contributing.md) for details on:
+```text
+mcp_server.py                      # FastMCP entry point, lifespan, arg parsing
+src/ignition_mcp/
+    config.py                      # Pydantic Settings (IGNITION_MCP_ prefix)
+    ignition_client.py             # Async HTTP client (httpx) for Gateway REST + WebDev
+    tools/
+        __init__.py                # register_all(mcp) — calls each module
+        gateway.py                 # info, health, logs, connections, metrics
+        projects.py                # project CRUD + export/import
+        resources.py               # project resource CRUD (native REST)
+        designers.py               # list_designers
+        tag_providers.py           # tag provider CRUD
+        tags.py                    # browse + read/write + CRUD via WebDev
+        alarms.py                  # alarm query + ack (WebDev)
+        historian.py               # tag history (WebDev)
+        execution.py               # run_gateway_script (off by default)
+tests/
+    conftest.py                    # Shared fixtures
+    test_client.py                 # IgnitionClient unit tests (mocked httpx)
+    test_tools.py                  # Tool logic unit tests (mocked client)
+    test_integration.py            # Live gateway tests (skipped by default)
+docs/
+    webdev-setup.md                # WebDev script deployment guide
+    api-reference.md               # Full tool reference
+```
 
-- Development setup
-- Code style guidelines  
-- Testing procedures
-- Pull request process
+## License
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Related Projects
-
-- [Model Context Protocol](https://github.com/modelcontextprotocol) - The MCP specification
-- [Ignition Documentation](https://docs.inductiveautomation.com/) - Official Ignition docs
-- [Claude Desktop](https://claude.ai/desktop) - AI assistant with MCP support
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ignition-mcp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ignition-mcp/discussions)
-- **Documentation**: [Project Wiki](https://github.com/yourusername/ignition-mcp/wiki)
+MIT

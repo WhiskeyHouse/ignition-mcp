@@ -212,3 +212,8 @@ __marimo__/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+.ralph/
+
+# Local MCP config (contains API keys / machine-specific paths)
+.mcp.json
