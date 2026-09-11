@@ -1,5 +1,7 @@
 # ignition-mcp
 
+[Documentation](https://whiskeyhouse.github.io/ignition-mcp/) · [Releases](https://github.com/WhiskeyHouse/ignition-mcp/releases) · [Issues](https://github.com/WhiskeyHouse/ignition-mcp/issues)
+
 A **Model Context Protocol (MCP)** server that gives AI assistants a curated,
 developer-oriented interface to the **Ignition Gateway REST API**.
 
@@ -70,38 +72,17 @@ uv run python mcp_server.py
 uv run python mcp_server.py --transport stdio
 ```
 
-## Client Configuration
+## Client configuration
 
-### Claude Code (`.mcp.json`)
+For an HTTP MCP client, use `http://127.0.0.1:8007/mcp` after starting the server.
 
-```json
-{
-  "mcpServers": {
-    "ignition-mcp": {
-      "type": "streamable-http",
-      "url": "http://localhost:8007/mcp"
-    }
-  }
-}
-```
-
-### Claude Desktop (`claude_desktop_config.json`)
+For a client that launches a stdio subprocess, use `uv` as the executable with these arguments:
 
 ```json
-{
-  "mcpServers": {
-    "ignition-mcp": {
-      "command": "uv",
-      "args": ["run", "python", "mcp_server.py", "--transport", "stdio"],
-      "cwd": "/path/to/ignition-mcp",
-      "env": {
-        "IGNITION_MCP_IGNITION_GATEWAY_URL": "https://your-gateway:8043",
-        "IGNITION_MCP_IGNITION_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
+["--directory", "/absolute/path/to/ignition-mcp", "run", "python", "mcp_server.py", "--transport", "stdio"]
 ```
+
+Replace the path with your checkout. See the [quickstart](docs/quickstart.md) for the first request and [configuration](docs/configuration.md) for settings.
 
 ## WebDev Prerequisite (tag values, alarms, history, script execution)
 

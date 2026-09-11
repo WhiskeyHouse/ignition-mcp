@@ -217,3 +217,8 @@ Thumbs.db
 
 # Local MCP config (contains API keys / machine-specific paths)
 .mcp.json
+
+# Documentation site
+/website/node_modules/
+/website/build/
+/website/.docusaurus/
