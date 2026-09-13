@@ -79,8 +79,9 @@ class Settings(BaseSettings):
     ssl_verify: bool = Field(
         default=True,
         description=(
-            "Verify TLS certificates. Trust the gateway certificate or private CA; "
-            "use false only for isolated local development."
+            "Verify TLS certificates. For a private CA, configure SSL_CERT_FILE or "
+            "SSL_CERT_DIR with the trusted CA certificates. Use false only for "
+            "isolated local development."
         ),
     )
 

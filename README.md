@@ -52,7 +52,7 @@ All environment variables are prefixed with `IGNITION_MCP_`:
 | `IGNITION_MCP_IGNITION_API_KEY` | *(empty)* | API key auth (preferred over basic auth) |
 | `IGNITION_MCP_IGNITION_USERNAME` | `admin` | Basic auth username |
 | `IGNITION_MCP_IGNITION_PASSWORD` | `password` | Basic auth password |
-| `IGNITION_MCP_SSL_VERIFY` | `true` | Trust the gateway certificate or private CA; `false` is for isolated local development only |
+| `IGNITION_MCP_SSL_VERIFY` | `true` | Verify TLS certificates. For a private CA, set `SSL_CERT_FILE` to a CA bundle or `SSL_CERT_DIR` to a certificate directory. `false` is for isolated local development only |
 | `IGNITION_MCP_WEBDEV_TAG_ENDPOINT` | *(empty)* | WebDev path for `read_tags`/`write_tag` |
 | `IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT` | *(empty)* | WebDev path for tag CRUD |
 | `IGNITION_MCP_WEBDEV_ALARM_ENDPOINT` | *(empty)* | WebDev path for alarm tools |

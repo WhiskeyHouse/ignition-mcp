@@ -14,7 +14,7 @@ Settings load from environment variables and the checkout’s `.env` file. The v
 | `IGNITION_MCP_WEBDEV_TAG_HISTORY_ENDPOINT` | `` | WebDev resource path for tag history (e.g. Global/GatewayAPI/tagHistory). Leave empty to disable — tools will return a setup-guidance error. |
 | `IGNITION_MCP_WEBDEV_SCRIPT_EXEC_ENDPOINT` | `` | WebDev resource path for script execution (e.g. Global/GatewayAPI/scriptExec). Leave empty to disable — tools will return a setup-guidance error. |
 | `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION` | `False` | Enable the run_gateway_script tool. OFF by default for safety. Set IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true to enable. |
-| `IGNITION_MCP_SSL_VERIFY` | `True` | Verify TLS certificates. Trust the gateway certificate or private CA; use false only for isolated local development. |
+| `IGNITION_MCP_SSL_VERIFY` | `True` | Verify TLS certificates. For a private CA, configure SSL_CERT_FILE or SSL_CERT_DIR with the trusted CA certificates. Use false only for isolated local development. |
 | `IGNITION_MCP_SERVER_HOST` | `127.0.0.1` | Host to bind the MCP server to |
 | `IGNITION_MCP_SERVER_PORT` | `8007` | Port to bind the MCP server to |
 
