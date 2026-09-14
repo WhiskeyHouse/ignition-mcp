@@ -78,7 +78,11 @@ class Settings(BaseSettings):
 
     ssl_verify: bool = Field(
         default=True,
-        description="Verify SSL certificates. Set to false for self-signed certs.",
+        description=(
+            "Verify TLS certificates. For a private CA, configure SSL_CERT_FILE or "
+            "SSL_CERT_DIR with the trusted CA certificates. Use false only for "
+            "isolated local development."
+        ),
     )
 
     server_host: str = Field(default="127.0.0.1", description="Host to bind the MCP server to")

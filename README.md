@@ -1,5 +1,7 @@
 # ignition-mcp
 
+[Documentation](https://whiskeyhouse.github.io/ignition-mcp/) · [Releases](https://github.com/WhiskeyHouse/ignition-mcp/releases) · [Issues](https://github.com/WhiskeyHouse/ignition-mcp/issues)
+
 A **Model Context Protocol (MCP)** server that gives AI assistants a curated,
 developer-oriented interface to the **Ignition Gateway REST API**.
 
@@ -50,7 +52,7 @@ All environment variables are prefixed with `IGNITION_MCP_`:
 | `IGNITION_MCP_IGNITION_API_KEY` | *(empty)* | API key auth (preferred over basic auth) |
 | `IGNITION_MCP_IGNITION_USERNAME` | `admin` | Basic auth username |
 | `IGNITION_MCP_IGNITION_PASSWORD` | `password` | Basic auth password |
-| `IGNITION_MCP_SSL_VERIFY` | `true` | Set `false` for self-signed certs |
+| `IGNITION_MCP_SSL_VERIFY` | `true` | Verify TLS certificates. For a private CA, set `SSL_CERT_FILE` to a CA bundle or `SSL_CERT_DIR` to a certificate directory. `false` is for isolated local development only |
 | `IGNITION_MCP_WEBDEV_TAG_ENDPOINT` | *(empty)* | WebDev path for `read_tags`/`write_tag` |
 | `IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT` | *(empty)* | WebDev path for tag CRUD |
 | `IGNITION_MCP_WEBDEV_ALARM_ENDPOINT` | *(empty)* | WebDev path for alarm tools |
@@ -70,38 +72,17 @@ uv run python mcp_server.py
 uv run python mcp_server.py --transport stdio
 ```
 
-## Client Configuration
+## Client configuration
 
-### Claude Code (`.mcp.json`)
+For an HTTP MCP client, use `http://127.0.0.1:8007/mcp` after starting the server.
 
-```json
-{
-  "mcpServers": {
-    "ignition-mcp": {
-      "type": "streamable-http",
-      "url": "http://localhost:8007/mcp"
-    }
-  }
-}
-```
-
-### Claude Desktop (`claude_desktop_config.json`)
+For a client that launches a stdio subprocess, use `uv` as the executable with these arguments:
 
 ```json
-{
-  "mcpServers": {
-    "ignition-mcp": {
-      "command": "uv",
-      "args": ["run", "python", "mcp_server.py", "--transport", "stdio"],
-      "cwd": "/path/to/ignition-mcp",
-      "env": {
-        "IGNITION_MCP_IGNITION_GATEWAY_URL": "https://your-gateway:8043",
-        "IGNITION_MCP_IGNITION_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
+["--directory", "/absolute/path/to/ignition-mcp", "run", "python", "mcp_server.py", "--transport", "stdio"]
 ```
+
+Replace the path with your checkout. See the [quickstart](docs/quickstart.md) for the first request and [configuration](docs/configuration.md) for settings.
 
 ## WebDev Prerequisite (tag values, alarms, history, script execution)
 

@@ -1,398 +1,520 @@
-# API Reference
+# Tool reference
 
-Complete reference for all 37 tools provided by Ignition MCP Server.
+Function signatures and descriptions from `src/ignition_mcp/tools/`. The `ctx` parameter is supplied by the MCP server and is omitted below. Registration is defined in each module.
 
-## Tool Summary
+## get_active_alarms
 
-| Category | Tool | Transport | Description |
-|----------|------|-----------|-------------|
-| **Gateway** | `get_gateway_info` | Native REST | Version, edition, state, uptime |
-| | `get_module_health` | Native REST | All modules and health status |
-| | `get_gateway_logs` | Native REST | Recent gateway log entries |
-| | `get_database_connections` | Native REST | Database connection status |
-| | `get_opc_connections` | Native REST | OPC-UA/COM connection state |
-| | `get_system_metrics` | Native REST | CPU, memory, threads, sessions |
-| **Projects** | `list_projects` | Native REST | All projects with metadata |
-| | `get_project` | Native REST | Single project details |
-| | `create_project` | Native REST | Create new project |
-| | `delete_project` | Native REST | Delete project (irreversible) |
-| | `copy_project` | Native REST | Clone project |
-| | `rename_project` | Native REST | Rename project |
-| | `export_project` | Native REST | Export as base64 ZIP |
-| | `import_project` | Native REST | Import from base64 ZIP |
-| **Resources** | `list_project_resources` | Native REST | List views, scripts, etc. |
-| | `get_project_resource` | Native REST | Fetch resource content |
-| | `set_project_resource` | Native REST | Create or overwrite resource |
-| | `delete_project_resource` | Native REST | Delete resource |
-| **Designers** | `list_designers` | Native REST | Active Designer sessions |
-| **Tag Providers** | `list_tag_providers` | Native REST | All configured providers |
-| | `get_tag_provider` | Native REST | Provider configuration |
-| | `create_tag_provider` | Native REST | Create provider |
-| | `delete_tag_provider` | Native REST | Delete provider + all tags |
-| **Tags** | `browse_tags` | Native REST | Tag tree structure (not values) |
-| | `read_tags` | WebDev | Runtime tag values |
-| | `write_tag` | WebDev | Write tag value |
-| | `get_tag_config` | WebDev | Tag configuration object |
-| | `create_tags` | WebDev | Create tags from config |
-| | `edit_tags` | WebDev | Merge-update tag config |
-| | `delete_tags` | WebDev | Delete tags by path |
-| | `list_udt_types` | WebDev | List UDT type definitions |
-| | `get_udt_definition` | WebDev | Full UDT schema |
-| **Alarms** | `get_active_alarms` | WebDev | Current active alarms |
-| | `get_alarm_history` | WebDev | Alarm journal entries |
-| | `acknowledge_alarms` | WebDev | Acknowledge by event ID |
-| **Historian** | `get_tag_history` | WebDev | Historical tag values |
-| **Execution** | `run_gateway_script` | WebDev | Execute Python on gateway (disabled by default) |
+```python
+get_active_alarms(source_filter: Annotated[Optional[str], Field(description="Filter alarms by source path prefix. E.g. '[default]Pumps' to see only alarms from that folder.")] = None, priority_filter: Annotated[Optional[str], Field(description="Minimum alarm priority: Diagnostic, Low, Medium, High, Critical. E.g. 'High' returns High and Critical alarms only.")] = None, state_filter: Annotated[Optional[str], Field(description='Alarm state filter: ActiveUnacked, ActiveAcked, ClearUnacked. Omit to return all active alarms regardless of state.')] = None)
+```
 
-**Native REST** = uses Ignition's built-in REST API, no WebDev setup needed.
-**WebDev** = requires a gateway-side WebDev script. See [webdev-setup.md](webdev-setup.md).
+Get currently active alarms from the gateway.
 
----
+Returns active alarm events with source path, display name, priority,
+state (active/acked), and timestamps for activation and acknowledgement.
 
-## Gateway Tools
+Requires the WebDev alarm endpoint. See docs/webdev-setup.md.
 
-### `get_gateway_info`
-Get Ignition Gateway version, edition, state, and uptime. No parameters required.
+## get_alarm_history
 
-**Returns:** `{version, edition, state, uptime, ...}`
+```python
+get_alarm_history(start_time: Annotated[Optional[str], Field(description="Start of the query time range in ISO 8601 format, e.g. '2024-01-15T08:00:00Z'. Defaults to 24 hours ago if omitted.")] = None, end_time: Annotated[Optional[str], Field(description="End of the query time range in ISO 8601 format, e.g. '2024-01-15T16:00:00Z'. Defaults to now if omitted.")] = None, source_filter: Annotated[Optional[str], Field(description="Filter by alarm source path prefix, e.g. '[default]Zone1'")] = None, priority_filter: Annotated[Optional[str], Field(description='Minimum priority: Diagnostic, Low, Medium, High, Critical')] = None, max_results: Annotated[int, Field(description='Maximum number of alarm journal entries to return (1-1000)', ge=1, le=1000)] = 100)
+```
 
-### `get_module_health`
+Query historical alarm journal entries.
+
+Returns alarm events (activations, acknowledgements, clears) within the
+specified time range. Use this to investigate past alarm activity or build
+audit trails.
+
+Requires the WebDev alarm endpoint. See docs/webdev-setup.md.
+
+## acknowledge_alarms
+
+```python
+acknowledge_alarms(event_ids: Annotated[List[str], Field(description='List of alarm event UUIDs to acknowledge. Get these from get_active_alarms (the eventId field).')], ack_note: Annotated[Optional[str], Field(description='Optional acknowledgement note or comment (logged with the ack)')] = None)
+```
+
+Acknowledge one or more active alarms.
+
+Requires alarm event IDs, which you can get from get_active_alarms.
+The acknowledgement is logged in the alarm journal with the current user
+(as configured on the WebDev endpoint) and the optional note.
+
+Requires the WebDev alarm endpoint. See docs/webdev-setup.md.
+
+## list_designers
+
+```python
+list_designers()
+```
+
+List active Ignition Designer sessions.
+
+Shows who is connected to the Designer, which project they have open, and
+since when. Useful to check if anyone is actively editing before making
+programmatic changes to a project.
+
+## run_gateway_script
+
+```python
+run_gateway_script(script: Annotated[str, Field(description="Python script to execute on the Ignition gateway. Use system.* functions available in the gateway scope. The script runs as a gateway script (not client/designer scope). Return values: use a module-level 'result' variable or print() for output.")], timeout_secs: Annotated[int, Field(description='Execution timeout in seconds (1-60). Default: 10.', ge=1, le=60)] = 10, dry_run: Annotated[bool, Field(description='If True, return the script that WOULD be executed without running it. Useful for previewing before committing to execution.')] = False)
+```
+
+Execute a Python script on the Ignition gateway and return the result.
+
+WARNING: This tool executes arbitrary code on the Ignition gateway.
+It is DISABLED by default. Set IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true to enable.
+
+The script runs in the gateway scripting scope with access to all
+system.* functions available on the gateway (system.tag, system.db, etc.).
+It does NOT have access to client-only functions like system.gui.*.
+
+Execution is logged on the gateway with a script hash for audit purposes.
+
+Guardrails:
+- Feature flag: must set IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true
+- Timeout: enforced both here and on the gateway WebDev side
+- Dry-run: set dry_run=True to preview without executing
+- Audit: every execution is logged on the gateway
+
+Example script:
+  tags = system.tag.readBlocking(['[default]MyTag'])
+  result = tags[0].value
+
+The gateway WebDev script must be deployed — see docs/webdev-setup.md.
+
+## get_gateway_info
+
+```python
+get_gateway_info()
+```
+
+Get Ignition Gateway version, edition, state, and uptime.
+
+Use this first to verify connectivity and confirm the gateway is running.
+No parameters required.
+
+## get_module_health
+
+```python
+get_module_health()
+```
+
 List all installed Ignition modules and their health status.
 
-**Returns:** `[{name, version, state, error?}, ...]`
+Returns module name, version, state (LOADED/FAULTED), and any error messages.
+Useful for diagnosing why something isn't working before investigating further.
 
-### `get_gateway_logs`
+## get_gateway_logs
+
+```python
+get_gateway_logs(level: Annotated[Optional[str], Field(description='Minimum log level to return: TRACE, DEBUG, INFO, WARN, ERROR. Default: INFO')] = None, logger_name: Annotated[Optional[str], Field(description="Filter by logger name, e.g. 'com.inductiveautomation.ignition'")] = None, limit: Annotated[int, Field(description='Maximum number of log entries to return (1-1000)', ge=1, le=1000)] = 100)
+```
+
 Fetch recent gateway log entries.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `level` | string | `"INFO"` | Min log level: TRACE, DEBUG, INFO, WARN, ERROR |
-| `logger_name` | string | `null` | Filter by logger name |
-| `limit` | int | `100` | Max entries (1-1000) |
+Returns log entries with timestamp, level, logger, and message.
+Use this to investigate errors, module faults, or unexpected gateway behaviour.
 
-**Returns:** `[{timestamp, level, logger, message}, ...]`
+Note: Uses the native Ignition REST API (/data/api/v1/logs).
 
-### `get_database_connections`
-List all database connections and their current status. No parameters.
+## get_database_connections
 
-**Returns:** `[{name, driver, state, error?}, ...]`
+```python
+get_database_connections()
+```
 
-### `get_opc_connections`
-List all OPC-UA/COM connections and their state. No parameters.
+List all database connections and their current status.
 
-**Returns:** `[{name, type, connected, state}, ...]`
+Returns connection name, driver, state (Valid/Faulted), and error info.
+Uses native REST API endpoint /data/api/v1/connections/database.
 
-### `get_system_metrics`
-Get gateway system metrics: CPU, memory, threads, active sessions. No parameters.
+## get_opc_connections
 
-**Returns:** `{cpu, memory, threads, sessions, ...}`
+```python
+get_opc_connections()
+```
 
----
+List all OPC-UA / OPC-COM connections and their current state.
 
-## Project Tools
+Returns connection name, type, connection status, and any fault details.
+Uses native REST API endpoint /data/api/v1/connections/opc.
 
-### `list_projects`
-List all Ignition projects. No parameters.
+## get_system_metrics
 
-**Returns:** `[{name, title, description, enabled, parent}, ...]`
+```python
+get_system_metrics()
+```
 
-### `get_project`
-Get full details of a specific project.
+Get gateway system metrics: CPU, memory, thread counts, active sessions.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `name` | string | yes | Exact project name |
+Returns a snapshot of gateway resource usage. Useful for diagnosing
+performance issues or understanding current gateway load.
+Uses native REST API endpoint /data/api/v1/system/metrics.
 
-### `create_project`
+## get_tag_history
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `name` | string | yes | Unique project name |
-| `title` | string | no | Display title |
-| `description` | string | no | Description |
-| `parent` | string | no | Parent project for inheritance |
-| `enabled` | bool | no | Default: `true` |
+```python
+get_tag_history(tag_paths: Annotated[List[str], Field(description="List of fully qualified tag paths with history enabled, e.g. ['[default]Sensors/Temperature', '[default]Sensors/Pressure']. Tags must have historian enabled in their configuration.")], start_time: Annotated[str, Field(description="Start of the query time range in ISO 8601 format. E.g. '2024-01-15T08:00:00Z' or '2024-01-15T08:00:00-05:00'.")], end_time: Annotated[str, Field(description="End of the query time range in ISO 8601 format. E.g. '2024-01-15T16:00:00Z'.")], aggregation: Annotated[str, Field(description='Aggregation mode for the returned values. Common options: LastValue (raw/last value in window), Average, Minimum, Maximum, Range, Count, StdDev, Sum, MinMax. Default: LastValue.')] = 'LastValue', interval_ms: Annotated[Optional[int], Field(description='Aggregation interval in milliseconds. E.g. 60000 for 1-minute intervals. If omitted, Ignition uses the natural storage resolution.', ge=1000)] = None, max_results: Annotated[int, Field(description='Maximum number of data points to return per tag (1-10000)', ge=1, le=10000)] = 1000)
+```
 
-### `delete_project`
-**Irreversible.** Consider `export_project` first.
+Query historical tag values from the Ignition historian.
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `name` | string | yes |
+Returns time-series data for the specified tags over the given time range.
+Results include timestamp and value for each data point.
 
-### `copy_project`
+Tag history must be enabled on each tag (History tab in tag properties).
+Use browse_tags to find tag paths and get_tag_config to verify history is enabled.
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `source_name` | string | yes |
-| `new_name` | string | yes |
+Aggregation modes:
+- LastValue: raw stored values (default)
+- Average: average value over each interval
+- Minimum / Maximum / Range: statistical aggregations
+- Count: number of values stored per interval
 
-### `rename_project`
+Requires the WebDev tagHistory endpoint. See docs/webdev-setup.md.
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `current_name` | string | yes |
-| `new_name` | string | yes |
+## list_projects
 
-### `export_project`
-Export project as a base64-encoded ZIP archive.
+```python
+list_projects()
+```
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `name` | string | yes |
+List all Ignition projects with their metadata.
 
-**Returns:** `{filename, content_base64, size_bytes}`
+Returns project names, titles, descriptions, enabled state, parent project,
+and other configuration. No parameters needed.
 
-### `import_project`
-Import from a base64-encoded ZIP archive.
+## get_project
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `name` | string | yes | Target project name |
-| `zip_base64` | string | yes | Base64 ZIP content from `export_project` |
-| `overwrite` | bool | no | Overwrite existing project. Default: `false` |
+```python
+get_project(name: Annotated[str, Field(description="Exact project name, e.g. 'MyProject'")])
+```
 
----
+Get full details of a specific Ignition project by name.
 
-## Project Resource Tools
+Returns the project's configuration including title, description, parent,
+default database, tag provider, user source, and enabled state.
 
-Project resources are files within a project: Perspective views, scripts, named
-queries, Vision windows, etc.
+## create_project
 
-Resource path format: `{module-id}/{resource-type}/{name}/{filename}`
+```python
+create_project(name: Annotated[str, Field(description='Project name (must be unique)')], title: Annotated[Optional[str], Field(description='Display title')] = None, description: Annotated[Optional[str], Field(description='Project description')] = None, parent: Annotated[Optional[str], Field(description='Parent project name for inheritance. Omit for standalone.')] = None, enabled: Annotated[bool, Field(description='Whether the project is enabled')] = True)
+```
 
-Common prefixes:
-- `com.inductiveautomation.perspective/views/` — Perspective views
-- `com.inductiveautomation.ignition/script-python/` — Project scripts
-- `com.inductiveautomation.ignition/named-query/` — Named queries
+Create a new empty Ignition project.
 
-### `list_project_resources`
+The project name must be unique on the gateway. Optionally set a parent
+project for resource inheritance.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `project` | string | yes | Project name |
-| `path_prefix` | string | no | Filter prefix, e.g. `com.inductiveautomation.perspective/views` |
+## delete_project
 
-### `get_project_resource`
+```python
+delete_project(name: Annotated[str, Field(description='Project name to delete')])
+```
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `project` | string | yes | Project name |
-| `resource_path` | string | yes | Full resource path |
+Permanently delete an Ignition project. THIS IS IRREVERSIBLE.
 
-### `set_project_resource`
-Create or overwrite a resource. **Overwrites without confirmation.**
+All project resources (views, scripts, named queries, etc.) will be lost.
+Consider exporting the project first with export_project.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `project` | string | yes | Project name |
-| `resource_path` | string | yes | Full resource path |
-| `content` | any | yes | Resource content (dict for JSON, string for scripts) |
+## copy_project
 
-### `delete_project_resource`
-**Irreversible.**
+```python
+copy_project(source_name: Annotated[str, Field(description='Name of the existing project to copy')], new_name: Annotated[str, Field(description='Name for the new copy')])
+```
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `project` | string | yes |
-| `resource_path` | string | yes |
+Clone an existing Ignition project to a new name.
 
----
+Creates an exact copy of all project resources. The new name must not
+already exist on the gateway.
 
-## Designer Tools
+## rename_project
 
-### `list_designers`
-List active Designer sessions. No parameters.
+```python
+rename_project(current_name: Annotated[str, Field(description='Current project name')], new_name: Annotated[str, Field(description='New project name')])
+```
 
-**Returns:** `[{user, project, since, address}, ...]`
+Rename an Ignition project.
 
----
+This changes the project's identifier. Any references to the old name
+(e.g. in gateway scripts) will need to be updated manually.
 
-## Tag Provider Tools
+## export_project
 
-### `list_tag_providers`
-No parameters. Returns all configured providers.
+```python
+export_project(name: Annotated[str, Field(description='Project name to export')])
+```
 
-### `get_tag_provider`
+Export an Ignition project as a ZIP archive (base64-encoded).
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `name` | string | yes |
+Returns {filename, content_base64, size_bytes}. The content is the standard
+Ignition project export format — you can save it as a .zip file and re-import
+it with import_project. Useful for backups or migration between gateways.
 
-### `create_tag_provider`
+## import_project
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `name` | string | required | Provider name |
-| `description` | string | `""` | Description |
-| `provider_type` | string | `"STANDARD"` | STANDARD, REMOTE, or DERIVED |
+```python
+import_project(name: Annotated[str, Field(description='Project name for the import')], zip_base64: Annotated[str, Field(description='Base64-encoded ZIP content from export_project')], overwrite: Annotated[bool, Field(description='Overwrite if a project with this name already exists')] = False)
+```
 
-### `delete_tag_provider`
-**Irreversible. Deletes all tags in the provider.**
+Import an Ignition project from a base64-encoded ZIP archive.
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `name` | string | yes |
+The ZIP should be in Ignition's standard project export format (as returned
+by export_project). WARNING: if overwrite=true, any existing project with
+the same name will be replaced.
 
----
+## list_project_resources
 
-## Tag Tools
+```python
+list_project_resources(project: Annotated[str, Field(description="Project name, e.g. 'MyProject'")], path_prefix: Annotated[Optional[str], Field(description="Optional path prefix to filter results. E.g. 'com.inductiveautomation.perspective/views' to list only Perspective views, or 'com.inductiveautomation.ignition/script-python' for scripts.")] = None)
+```
 
-### `browse_tags`
-Browse tag tree structure (names, paths, types) — **not runtime values**.
+List all resources in an Ignition project.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `path` | string | `""` | Tag path, e.g. `[default]Folder`. Empty = all providers |
-| `depth` | int | `2` | Recursion depth (1-4) |
+Returns paths for all project resources: Perspective views, scripts, named queries,
+report templates, transaction groups, and more.
 
-### `read_tags`
-Read runtime values. Requires WebDev tag endpoint.
+Resource paths follow the pattern:
+  {module-id}/{resource-type}/{name}/{filename}
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `tag_paths` | list[str] | Fully qualified paths, e.g. `["[default]T1"]`. Max 100 |
+Common module IDs:
+- com.inductiveautomation.perspective — Perspective views and styles
+- com.inductiveautomation.ignition   — Scripts, named queries, tags, etc.
+- com.inductiveautomation.vision     — Vision windows and templates
 
-**Returns:** `[{path, value, quality, timestamp}, ...]`
+Use get_project_resource to fetch the content of a specific resource.
 
-### `write_tag`
-Write a value. Requires WebDev tag endpoint.
+## get_project_resource
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tag_path` | string | yes | Fully qualified path |
-| `value` | any | yes | Value to write |
-| `data_type` | string | no | Type hint: Int4, Float8, String, Boolean, etc. |
+```python
+get_project_resource(project: Annotated[str, Field(description="Project name, e.g. 'MyProject'")], resource_path: Annotated[str, Field(description="Full resource path within the project. E.g. 'com.inductiveautomation.perspective/views/MainView/view.json'")])
+```
 
-### `get_tag_config`
-Get full tag configuration object (not runtime value). Requires WebDev tagConfig endpoint.
+Fetch the content of a specific project resource.
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `tag_path` | string | yes |
+Returns the raw resource content — usually JSON for views and queries,
+Python source for scripts. AI can read this to understand or modify the resource.
 
-### `create_tags`
-Create tags (add-only, no overwrite). Requires WebDev tagConfig endpoint.
+Examples:
+- Perspective view: 'com.inductiveautomation.perspective/views/Dashboard/view.json'
+- Script module: 'com.inductiveautomation.ignition/script-python/utils/code.py'
+- Named query: 'com.inductiveautomation.ignition/named-query/GetSensorData/query.json'
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tags` | list[dict] | yes | Tag config objects with `name`, `tagType`, `dataType` |
-| `provider` | string | no | Tag provider name. Default: `"default"` |
+Use list_project_resources to discover available resource paths.
 
-### `edit_tags`
-Create or update tags with merge semantics. Requires WebDev tagConfig endpoint.
+## set_project_resource
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tags` | list[dict] | yes | Tag config objects to merge |
-| `provider` | string | no | Tag provider name |
+```python
+set_project_resource(project: Annotated[str, Field(description="Project name, e.g. 'MyProject'")], resource_path: Annotated[str, Field(description="Full resource path within the project. E.g. 'com.inductiveautomation.perspective/views/MainView/view.json'. If the resource doesn't exist, it will be created.")], content: Annotated[Any, Field(description='Resource content to write. For JSON resources (views, queries) this should be a dict/object. For Python scripts, this may be a string or structured object depending on the Ignition version.')])
+```
 
-### `delete_tags`
-Delete tags by path. **Irreversible.** Requires WebDev tagConfig endpoint.
+Create or overwrite a project resource (view, script, named query, etc.).
 
-| Parameter | Type | Required |
-|-----------|------|----------|
-| `tag_paths` | list[str] | yes |
+Writes the provided content to the specified resource path. If the resource
+doesn't exist it is created; if it does, it is overwritten.
 
-### `list_udt_types`
-List UDT type definitions. Requires WebDev tagConfig endpoint.
+WARNING: This directly overwrites the resource on the gateway. There is no
+undo — consider reading the existing resource with get_project_resource first
+if you want to preserve or merge content.
 
-| Parameter | Type | Default |
-|-----------|------|---------|
-| `provider` | string | `"default"` |
+Common use cases:
+- Modify a Perspective view's JSON to update component properties
+- Update a script module with new Python code
+- Create a new named query
 
-### `get_udt_definition`
-Get full UDT schema. Requires WebDev tagConfig endpoint.
+No WebDev required — uses native REST API.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `udt_path` | string | yes | E.g. `[default]_types_/Motor` |
+## delete_project_resource
 
----
+```python
+delete_project_resource(project: Annotated[str, Field(description="Project name, e.g. 'MyProject'")], resource_path: Annotated[str, Field(description="Full resource path within the project to delete. E.g. 'com.inductiveautomation.perspective/views/OldView/view.json'")])
+```
 
-## Alarm Tools
+Delete a specific project resource. THIS IS IRREVERSIBLE.
 
-All alarm tools require the WebDev alarm endpoint. See [webdev-setup.md](webdev-setup.md).
+Permanently removes the resource from the project. This cannot be undone.
+Consider listing project resources first (list_project_resources) to
+confirm the exact path before deleting.
 
-### `get_active_alarms`
+No WebDev required — uses native REST API.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `source_filter` | string | Filter by source path prefix |
-| `priority_filter` | string | Min priority: Diagnostic, Low, Medium, High, Critical |
-| `state_filter` | string | ActiveUnacked, ActiveAcked, ClearUnacked |
+## list_tag_providers
 
-### `get_alarm_history`
+```python
+list_tag_providers()
+```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `start_time` | string | 24h ago | ISO 8601, e.g. `2024-01-15T08:00:00Z` |
-| `end_time` | string | now | ISO 8601 |
-| `source_filter` | string | — | Filter by source prefix |
-| `priority_filter` | string | — | Min priority |
-| `max_results` | int | `100` | Max entries (1-1000) |
+List all configured tag providers on the gateway.
 
-### `acknowledge_alarms`
+Tag providers are containers for tags. Most installations have a 'default'
+provider of type STANDARD. This returns provider names, types, and config.
+These are *configuration* resources — for runtime tag values, use read_tags.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `event_ids` | list[str] | yes | Alarm event UUIDs from `get_active_alarms` |
-| `ack_note` | string | no | Optional acknowledgement comment |
+## get_tag_provider
 
----
+```python
+get_tag_provider(name: Annotated[str, Field(description="Tag provider name, e.g. 'default'")])
+```
 
-## Historian Tools
+Get the full configuration of a specific tag provider.
 
-### `get_tag_history`
-Query historical tag values. Requires WebDev tagHistory endpoint.
+Returns the provider type (STANDARD, REMOTE, DERIVED), settings, and
+metadata. Use list_tag_providers first to see available names.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tag_paths` | list[str] | yes | Fully qualified paths (history must be enabled) |
-| `start_time` | string | yes | ISO 8601 start |
-| `end_time` | string | yes | ISO 8601 end |
-| `aggregation` | string | no | LastValue, Average, Minimum, Maximum, Range, Count, etc. Default: `LastValue` |
-| `interval_ms` | int | no | Aggregation interval in ms (≥1000). Omit for natural resolution |
-| `max_results` | int | no | Max data points per tag (1-10000). Default: `1000` |
+## create_tag_provider
 
-**Returns:** `{tags: [{path, values: [{t, v}, ...]}, ...], rowCount}`
+```python
+create_tag_provider(name: Annotated[str, Field(description='New tag provider name')], description: Annotated[str, Field(description='Provider description')] = '', provider_type: Annotated[str, Field(description='Provider type: STANDARD (local tags), REMOTE, or DERIVED')] = 'STANDARD')
+```
 
----
+Create a new tag provider on the gateway.
 
-## Execution Tools
+Most use cases need a STANDARD provider, which stores tags locally.
+REMOTE providers connect to another gateway's tags over the gateway network.
 
-### `run_gateway_script`
+## delete_tag_provider
 
-**Disabled by default.** Must set `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true`.
+```python
+delete_tag_provider(name: Annotated[str, Field(description='Tag provider name to delete')])
+```
 
-Requires WebDev scriptExec endpoint and careful security setup. See [webdev-setup.md](webdev-setup.md).
+Delete a tag provider and ALL of its tags. THIS IS IRREVERSIBLE.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `script` | string | required | Python script to execute |
-| `timeout_secs` | int | `10` | Timeout (1-60 seconds) |
-| `dry_run` | bool | `false` | Preview without executing |
+All tags within this provider will be permanently deleted. This cannot
+be undone. Make sure you have a backup if the tags are important.
 
-**Returns:** `{result, stdout, error, scriptHash}`
+## browse_tags
 
----
+```python
+browse_tags(path: Annotated[str, Field(description="Tag path to browse from. Use '[default]' for the default provider root, '[default]Folder/Subfolder' for deeper paths. Empty string browses all providers.")] = '', depth: Annotated[int, Field(description='How deep to recurse (1-4). Default 2. Max 4 to prevent huge responses.', ge=1, le=4)] = 2)
+```
 
-## Configuration Reference
+Browse the tag tree structure (names, types, paths) — NOT runtime values.
 
-All settings use the `IGNITION_MCP_` prefix. See also `src/ignition_mcp/config.py`.
+Returns the hierarchical tag structure up to the requested depth. Tags may be
+AtomicTag (leaf), Folder, or UDT instances. Large tag databases can have
+thousands of tags, so depth is capped at 4.
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `IGNITION_MCP_IGNITION_GATEWAY_URL` | `http://localhost:8088` | Gateway base URL |
-| `IGNITION_MCP_IGNITION_USERNAME` | `admin` | Basic auth username |
-| `IGNITION_MCP_IGNITION_PASSWORD` | `password` | Basic auth password |
-| `IGNITION_MCP_IGNITION_API_KEY` | `""` | API key (preferred over basic auth) |
-| `IGNITION_MCP_WEBDEV_TAG_ENDPOINT` | `""` (disabled) | Tag read/write WebDev path (recommended: `Global/GatewayAPI/tags`) |
-| `IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT` | `""` (disabled) | Tag CRUD WebDev path (recommended: `Global/GatewayAPI/tagConfig`) |
-| `IGNITION_MCP_WEBDEV_ALARM_ENDPOINT` | `""` (disabled) | Alarm WebDev path (recommended: `Global/GatewayAPI/alarms`) |
-| `IGNITION_MCP_WEBDEV_TAG_HISTORY_ENDPOINT` | `""` (disabled) | Tag history WebDev path (recommended: `Global/GatewayAPI/tagHistory`) |
-| `IGNITION_MCP_WEBDEV_SCRIPT_EXEC_ENDPOINT` | `""` (disabled) | Script exec WebDev path (recommended: `Global/GatewayAPI/scriptExec`) |
-| `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION` | `false` | Enable `run_gateway_script` |
-| `IGNITION_MCP_SSL_VERIFY` | `true` | Verify SSL certificates |
-| `IGNITION_MCP_SERVER_HOST` | `127.0.0.1` | MCP server bind host |
-| `IGNITION_MCP_SERVER_PORT` | `8007` | MCP server port |
+Path syntax: [provider]Folder/Subfolder/TagName
+- Provider name in square brackets, e.g. [default]
+- Forward-slash hierarchy after the provider
+- Empty path returns all providers as top-level entries
+
+For runtime tag VALUES (current reading, quality, timestamp), use read_tags instead.
+
+## read_tags
+
+```python
+read_tags(tag_paths: Annotated[List[str], Field(description="List of fully qualified tag paths to read, e.g. ['[default]Folder/Temperature', '[default]Folder/Pressure']. Max 100.", max_length=100)])
+```
+
+Read runtime values of one or more Ignition tags.
+
+Returns a list of {path, value, quality, timestamp} for each tag.
+
+IMPORTANT: Requires a WebDev script on the Ignition gateway.
+Set IGNITION_MCP_WEBDEV_TAG_ENDPOINT (default: Global/GatewayAPI/tags).
+See docs/webdev-setup.md for setup instructions.
+
+## write_tag
+
+```python
+write_tag(tag_path: Annotated[str, Field(description="Fully qualified tag path, e.g. '[default]Folder/SetPoint'")], value: Annotated[Any, Field(description='Value to write to the tag')], data_type: Annotated[Optional[str], Field(description='Ignition data type hint (Int4, Float8, String, Boolean, etc.)')] = None)
+```
+
+Write a value to a single Ignition tag.
+
+IMPORTANT: Requires a WebDev script on the Ignition gateway.
+Set IGNITION_MCP_WEBDEV_TAG_ENDPOINT (default: Global/GatewayAPI/tags).
+See docs/webdev-setup.md for setup instructions.
+
+## get_tag_config
+
+```python
+get_tag_config(tag_path: Annotated[str, Field(description="Fully qualified tag path, e.g. '[default]Folder/MyTag'. Returns full configuration JSON, not the runtime value.")])
+```
+
+Get the full configuration object for a tag (not its runtime value).
+
+Returns the tag definition: data type, tag type, alarming config, history
+settings, scaling, etc. This is equivalent to right-clicking a tag in the
+Designer and viewing its properties.
+
+Requires the WebDev tagConfig endpoint (IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT).
+See docs/webdev-setup.md for gateway setup instructions.
+
+## create_tags
+
+```python
+create_tags(tags: Annotated[List[Dict[str, Any]], Field(description="List of tag configuration objects to create. Each must have at minimum 'name' and 'tagType' (e.g. 'AtomicTag'). Include 'path' to specify the folder. Example: [{'name': 'MyTag', 'tagType': 'AtomicTag', 'dataType': 'Float8', 'path': '[default]Folder'}]")], provider: Annotated[Optional[str], Field(description="Tag provider name. Defaults to 'default' on the gateway.")] = None)
+```
+
+Create one or more tags from configuration objects.
+
+Uses Ignition's system.tag.configure() with editMode='a' (add only).
+Tags that already exist will not be overwritten — use edit_tags for updates.
+
+Each tag object should follow Ignition's tag configuration schema. Minimum:
+- name: tag name
+- tagType: 'AtomicTag', 'Folder', 'UdtInstance', etc.
+- dataType: 'Boolean', 'Int4', 'Float8', 'String', etc.
+
+Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
+
+## edit_tags
+
+```python
+edit_tags(tags: Annotated[List[Dict[str, Any]], Field(description="List of tag configuration objects to create or update. Uses merge/upsert semantics — existing tags are updated, new ones created. Each object must include 'name' and any fields to modify.")], provider: Annotated[Optional[str], Field(description="Tag provider name. Defaults to 'default' on the gateway.")] = None)
+```
+
+Create or modify tags using merge/upsert semantics.
+
+Uses Ignition's system.tag.configure() with editMode='m' (merge).
+Existing tags have specified properties updated; non-specified properties
+are left unchanged. New tags are created if they don't exist.
+
+Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
+
+## delete_tags
+
+```python
+delete_tags(tag_paths: Annotated[List[str], Field(description="List of fully qualified tag paths to delete, e.g. ['[default]Folder/MyTag', '[default]OtherFolder']. Deleting a folder removes all tags within it.")])
+```
+
+Delete tags by path. THIS IS IRREVERSIBLE.
+
+Deleting a folder removes all tags within it recursively.
+The tag paths must be fully qualified (e.g. '[default]Folder/TagName').
+
+Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
+
+## list_udt_types
+
+```python
+list_udt_types(provider: Annotated[str, Field(description="Tag provider name to list UDT types from, e.g. 'default'")] = 'default')
+```
+
+List all UDT (User Defined Type) type definitions in a tag provider.
+
+Returns the names and paths of all UDT type definitions. Use get_udt_definition
+to fetch the full schema for a specific UDT type.
+
+UDT types live under the _types_ folder in the tag browser.
+
+Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
+
+## get_udt_definition
+
+```python
+get_udt_definition(udt_path: Annotated[str, Field(description="Path to the UDT type definition, e.g. '[default]_types_/Motor'. Use list_udt_types to discover available types.")])
+```
+
+Fetch the full schema definition of a UDT (User Defined Type).
+
+Returns the complete UDT structure: all member tags, their types, alarming
+config, parameters, and overridable properties. Useful for understanding
+what an instance will contain before creating one.
+
+Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
