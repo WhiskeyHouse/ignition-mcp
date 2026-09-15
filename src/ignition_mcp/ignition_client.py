@@ -51,6 +51,29 @@ class IgnitionClient:
         creds = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
         return {"Authorization": f"Basic {creds}"}
 
+    @staticmethod
+    def _error_detail(resp: httpx.Response, limit: int = 2000) -> str:
+        """Pull a short, human-readable detail out of a non-2xx response body,
+        so callers see the gateway's actual error message/traceback instead of
+        just a bare 'N Server Error' status line."""
+        ct = resp.headers.get("content-type", "")
+        if "application/json" in ct:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict) and "error" in body:
+                detail = str(body["error"])
+                if "traceback" in body:
+                    detail += "\n" + str(body["traceback"])
+            elif body is not None:
+                detail = str(body)
+            else:
+                detail = resp.text
+        else:
+            detail = resp.text
+        return detail[:limit]
+
     # ------------------------------------------------------------------
     # Low-level HTTP
     # ------------------------------------------------------------------
@@ -87,7 +110,14 @@ class IgnitionClient:
             params=params,
             timeout=timeout,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise httpx.HTTPStatusError(
+                f"{exc} | body: {self._error_detail(resp)}",
+                request=exc.request,
+                response=exc.response,
+            ) from exc
 
         if raw_response:
             return resp
