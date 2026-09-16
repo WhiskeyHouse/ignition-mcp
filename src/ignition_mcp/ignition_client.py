@@ -5,12 +5,16 @@ Constructed once in the FastMCP lifespan and shared across all tool calls.
 """
 
 import base64
+import logging
+import uuid
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import quote
 
 import httpx
 
 from .config import settings
+
+logger = logging.getLogger("ignition-mcp")
 
 
 class IgnitionClient:
@@ -23,12 +27,18 @@ class IgnitionClient:
         password: Optional[str] = None,
         api_key: Optional[str] = None,
         ssl_verify: Optional[bool] = None,
+        include_error_detail: bool = True,
     ):
         self.gateway_url = (gateway_url or settings.ignition_gateway_url).rstrip("/")
         self.username = username or settings.ignition_username
         self.password = password or settings.ignition_password
         self.api_key = api_key or settings.ignition_api_key
         self._verify = ssl_verify if ssl_verify is not None else settings.ssl_verify
+        # Whether to include the gateway's raw error body/traceback in errors
+        # returned to MCP callers. False when the server may be network-reachable
+        # (see mcp_server.py's transport/host auto-detect) — full detail is then
+        # logged server-side under a correlation id instead.
+        self.include_error_detail = include_error_detail
 
         self._client = httpx.AsyncClient(
             base_url=self.gateway_url, timeout=30.0, verify=self._verify
@@ -50,6 +60,31 @@ class IgnitionClient:
             return {"X-Ignition-API-Token": self.api_key}
         creds = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
         return {"Authorization": f"Basic {creds}"}
+
+    @staticmethod
+    def _error_detail(resp: httpx.Response, limit: int = 2000) -> str:
+        """Pull a short, human-readable detail out of a non-2xx response body,
+        so callers see the gateway's actual error message/traceback instead of
+        just a bare 'N Server Error' status line."""
+        ct = resp.headers.get("content-type", "")
+        if "application/json" in ct:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict) and "error" in body:
+                detail = str(body["error"])
+                if "traceback" in body:
+                    detail += "\n" + str(body["traceback"])
+                if "errorId" in body:
+                    detail += f" (gateway error id: {body['errorId']}, see gateway logs)"
+            elif body is not None:
+                detail = str(body)
+            else:
+                detail = resp.text
+        else:
+            detail = resp.text
+        return detail[:limit]
 
     # ------------------------------------------------------------------
     # Low-level HTTP
@@ -87,7 +122,21 @@ class IgnitionClient:
             params=params,
             timeout=timeout,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if self.include_error_detail:
+                message = f"{exc} | body: {self._error_detail(resp)}"
+            else:
+                error_id = uuid.uuid4().hex[:8]
+                logger.error("gateway error [%s]: %s | body: %s", error_id, exc, self._error_detail(resp))
+                message = (
+                    f"Gateway request failed (HTTP {resp.status_code}) | "
+                    f"error id: {error_id} (see server logs for details)"
+                )
+            raise httpx.HTTPStatusError(
+                message, request=exc.request, response=exc.response
+            ) from exc
 
         if raw_response:
             return resp

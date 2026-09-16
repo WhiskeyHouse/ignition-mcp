@@ -34,11 +34,126 @@ provider tools.
 
 1. Open the Ignition Designer and connect to your gateway
 2. In the Project Browser, expand **WebDev**
-3. Right-click to create a **New Resource** at the desired path
-4. Paste the script from this guide into the resource's `doPost` handler
-5. Save and publish the project
+3. Right-click to create a **New Resource** → **Python Resource** at the desired path
+4. In the resource editor, set **HTTP Method** to `doPost` (it defaults to `doGet` —
+   see the gotcha below, this is the single most common setup mistake)
+5. Paste the script from this guide into the script body
+6. Save and publish the project
 
 Each WebDev resource handles `POST` requests with a JSON body.
+
+---
+
+## Known gateway-build quirks
+
+These were found by deploying against a live Ignition 8.3.9 gateway and are folded
+into every script below. If you're on a different build and a script errors out,
+check these first — they're the most likely culprits:
+
+1. **HTTP Method defaults to `doGet`.** The Designer's Python Resource editor
+   creates a `doGet` stub by default. If you paste a `doPost` handler without
+   switching the dropdown, requests fail with `501 Not Implemented`.
+
+2. **`def doPost(request, session):` must be the first line of the script.**
+   The resource editor locks the function signature to line 1 — you cannot put
+   module-level imports or helper functions/loggers above it. All imports and
+   helpers must move *inside* the function body (nested functions are fine).
+
+3. **`request["data"]` may already be a parsed dict**, not a raw JSON string,
+   depending on the WebDev module build. Calling `json.loads()` on an
+   already-parsed dict raises `TypeError: expected string or buffer, but got
+   <type 'dict'>`. Guard it:
+   ```python
+   data = request["data"]
+   if isinstance(data, basestring):
+       data = json.loads(data)
+   ```
+
+4. **`system.tag.browse(...).getResults()` returns plain dicts**, not Java
+   objects with attributes, on this build. Use `r["name"]` / `r["fullPath"]`,
+   not `r.name` / `r.fullPath` (which raises `AttributeError`).
+
+5. **`system.tag.configure()` needs a bracket-notation base path** (e.g.
+   `"[default]"`), not a bare provider name (`"default"`) — and its return
+   value (a list of `QualityCode`-like Java objects) is not JSON-serializable
+   as-is. Passing it straight through causes WebDev to send back
+   `200 OK` with an **empty body** (the script runs fine, but the response
+   silently fails to serialize). Stringify each result: `str(r)`.
+
+6. **`system.tag.getConfiguration()` can throw a hard
+   `TagPathFormatException: Invalid source or array specification`** on some
+   8.3 Early Access builds, regardless of whether the path is valid — this
+   reproduces even for a trivial path like `[default]SomeTag`. This is an
+   upstream Ignition bug, not something fixable at the script level (see the
+   [Inductive Automation forum](https://forum.inductiveautomation.com/) for
+   open threads on 8.3 EA tag/REST API issues). If you hit this, `getConfig`
+   and `getUDTDefinition` may be unusable until IA patches it — browse the
+   tag/UDT structure manually in Designer as a fallback.
+
+7. **`path` has no effect for `tagType: 'UdtType'`.** Ignition always places
+   UDT type definitions under `[provider]_types_` regardless of the base path
+   you send. The `configure` action below groups tags by resolved base path
+   and drops (with a warning) any `path` supplied on a `UdtType` tag, rather
+   than silently ignoring it.
+
+8. **Every script below imports a shared `GatewayAPI.util` Script Library
+   module** (body parsing + error formatting, see the next section). Deploy
+   that module first — every endpoint below will fail with an `ImportError`
+   until it exists.
+
+---
+
+## 0. Shared Script Library Module — `GatewayAPI.util`
+
+All five WebDev endpoints share two bits of boilerplate: parsing the request
+body (quirk #3) and turning any uncaught exception into a clean JSON error
+response instead of a raw 500 HTML page. Rather than duplicate that in every
+resource, put it once in a Script Library module and import it from each
+`doPost` body (importing inside the function is fine — it's *module-level*
+code the resource editor forbids, per quirk #2).
+
+**Deploy this first:**
+1. In the Designer's Project Browser, expand **Script Library**
+2. Right-click → **New Package** → name it `GatewayAPI`
+3. Right-click the new package → **New Script** → name it `util`
+4. Paste the code below, save and publish
+
+```python
+# Script Library module: GatewayAPI.util
+# Shared helpers for the GatewayAPI WebDev endpoints. Import from inside each
+# doPost handler, e.g.: from GatewayAPI import util as gwutil
+
+import json
+import traceback
+import uuid
+
+_logger = system.util.getLogger("GatewayAPI.util")
+
+
+def parse_body(request):
+    """Return the request body as a dict, regardless of whether this WebDev
+    build hands doPost a raw JSON string or an already-parsed dict."""
+    data = request["data"]
+    if isinstance(data, basestring):
+        data = json.loads(data)
+    return data
+
+
+def error_response(exc, code=500):
+    """Build a {"json": ...} WebDev response for a failed endpoint call.
+
+    This endpoint is reachable by any authenticated WebDev caller, so the
+    exception and traceback are logged server-side under a correlation id
+    rather than returned in the response — callers get only a generic
+    message and that id. Call from an `except Exception as exc:` block so
+    the traceback reflects the exception actually in flight."""
+    error_id = str(uuid.uuid4())[:8]
+    _logger.error("[%s] %s\n%s" % (error_id, exc, traceback.format_exc()))
+    return {
+        "json": {"error": "Request failed", "errorId": error_id},
+        "response": {"code": code},
+    }
+```
 
 ---
 
@@ -47,42 +162,44 @@ Each WebDev resource handles `POST` requests with a JSON body.
 This endpoint backs `read_tags` and `write_tag`.
 
 ```python
-# doPost handler
-import json
-
-
 def doPost(request, session):
-    data = json.loads(request["data"])
+    from GatewayAPI import util as gwutil
 
-    if "paths" in data:
-        # Read multiple tags
-        paths = data["paths"]
-        results = []
-        readings = system.tag.readBlocking(paths)
-        for i, path in enumerate(paths):
-            qv = readings[i]
-            results.append(
-                {
-                    "path": path,
-                    "value": qv.value,
-                    "quality": str(qv.quality),
-                    "timestamp": str(qv.timestamp),
-                }
-            )
-        return {"json": results}
+    try:
+        data = gwutil.parse_body(request)
 
-    elif "tagPath" in data:
-        # Write a single tag
-        path = data["tagPath"]
-        value = data["value"]
-        data_type = data.get("dataType")
-        if data_type:
-            value = system.tag.DataType.valueOf(data_type).coerce(value)
-        system.tag.writeBlocking([path], [value])
-        return {"json": {"status": "ok", "tagPath": path, "value": value}}
+        if "paths" in data:
+            # Read multiple tags
+            paths = data["paths"]
+            results = []
+            readings = system.tag.readBlocking(paths)
+            for i, path in enumerate(paths):
+                qv = readings[i]
+                results.append(
+                    {
+                        "path": path,
+                        "value": qv.value,
+                        "quality": str(qv.quality),
+                        "timestamp": str(qv.timestamp),
+                    }
+                )
+            return {"json": results}
 
-    else:
-        return {"json": {"error": "Invalid request body"}, "response": {"code": 400}}
+        elif "tagPath" in data:
+            # Write a single tag
+            path = data["tagPath"]
+            value = data["value"]
+            data_type = data.get("dataType")
+            if data_type:
+                value = system.tag.DataType.valueOf(data_type).coerce(value)
+            system.tag.writeBlocking([path], [value])
+            return {"json": {"status": "ok", "tagPath": path, "value": value}}
+
+        else:
+            return {"json": {"error": "Invalid request body"}, "response": {"code": 400}}
+
+    except Exception as exc:
+        return gwutil.error_response(exc)
 ```
 
 **Configuration:**
@@ -98,49 +215,89 @@ This endpoint backs `get_tag_config`, `create_tags`, `edit_tags`, `delete_tags`,
 `list_udt_types`, and `get_udt_definition`.
 
 ```python
-# doPost handler
-import json
-
-
 def doPost(request, session):
-    data = json.loads(request["data"])
-    action = data.get("action")
+    from GatewayAPI import util as gwutil
 
-    if action == "getConfig":
-        tag_path = data["tagPath"]
-        tags = system.tag.getConfiguration([tag_path], False)
-        if tags:
-            return {"json": tags[0]}
-        return {"json": {"error": "Tag not found: " + tag_path}, "response": {"code": 404}}
+    try:
+        data = gwutil.parse_body(request)
+        action = data.get("action")
 
-    elif action == "configure":
-        tags_config = data["tags"]
-        edit_mode = data.get("editMode", "m")
-        provider = data.get("provider", "default")
-        result = system.tag.configure(provider, tags_config, edit_mode)
-        return {"json": {"status": "ok", "results": result}}
+        if action == "getConfig":
+            # NOTE: getConfiguration() can throw a hard TagPathFormatException
+            # on some 8.3 EA builds even for valid paths. The outer try/except
+            # below turns that (and any other action's failure) into a clean
+            # JSON error instead of a raw 500 HTML traceback.
+            tag_path = data["tagPath"]
+            tags = system.tag.getConfiguration([tag_path], False)
+            if tags:
+                return {"json": tags[0]}
+            return {"json": {"error": "Tag not found: " + tag_path}, "response": {"code": 404}}
 
-    elif action == "deleteTags":
-        tag_paths = data["tagPaths"]
-        system.tag.deleteTags(tag_paths)
-        return {"json": {"status": "deleted", "count": len(tag_paths)}}
+        elif action == "configure":
+            tags_config = data["tags"]
+            edit_mode = data.get("editMode", "m")
+            provider = data.get("provider", "default")
 
-    elif action == "listUDTTypes":
-        provider = data.get("provider", "default")
-        # Browse the _types_ folder to list UDT definitions
-        results = system.tag.browse("[" + provider + "]_types_", {"tagType": "UdtType"})
-        types = [{"name": r.name, "path": str(r.fullPath)} for r in results.getResults()]
-        return {"json": types}
+            # Group tags by their per-tag 'path' so each group can be sent to
+            # system.tag.configure() with the right basePath. UdtType definitions
+            # always land under [provider]_types_ regardless of basePath, so
+            # 'path' is dropped (with a warning) rather than silently ignored.
+            groups = {}
+            warnings = []
+            for tag in tags_config:
+                tag = dict(tag)
+                tag_path = tag.pop("path", None)
+                if tag.get("tagType") == "UdtType" and tag_path:
+                    warnings.append(
+                        "Tag '%s': 'path' is ignored by Ignition for UdtType definitions; "
+                        "it always lands under [%s]_types_." % (tag.get("name"), provider)
+                    )
+                    tag_path = None
+                if tag_path:
+                    base_path = tag_path if tag_path.startswith("[") else "[" + provider + "]" + tag_path
+                else:
+                    base_path = "[" + provider + "]"
+                groups.setdefault(base_path, []).append(tag)
 
-    elif action == "getUDTDefinition":
-        udt_path = data["udtPath"]
-        tags = system.tag.getConfiguration([udt_path], True)
-        if tags:
-            return {"json": tags[0]}
-        return {"json": {"error": "UDT not found: " + udt_path}, "response": {"code": 404}}
+            # system.tag.configure() returns a list of QualityCode-like Java objects
+            # that are not JSON-serializable as-is — stringify or WebDev silently
+            # returns 200 OK with an empty body.
+            results = []
+            for base_path, group_tags in groups.items():
+                group_result = system.tag.configure(base_path, group_tags, edit_mode) or []
+                results.extend([str(r) for r in group_result])
 
-    else:
-        return {"json": {"error": "Unknown action: " + str(action)}, "response": {"code": 400}}
+            response = {"status": "ok", "results": results}
+            if warnings:
+                response["warnings"] = warnings
+            return {"json": response}
+
+        elif action == "deleteTags":
+            tag_paths = data["tagPaths"]
+            system.tag.deleteTags(tag_paths)
+            return {"json": {"status": "deleted", "count": len(tag_paths)}}
+
+        elif action == "listUDTTypes":
+            provider = data.get("provider", "default")
+            # Browse the _types_ folder to list UDT definitions.
+            # NOTE: getResults() returns plain dicts on some builds, not objects —
+            # use r["name"] / r["fullPath"], not r.name / r.fullPath.
+            results = system.tag.browse("[" + provider + "]_types_", {"tagType": "UdtType"})
+            types = [{"name": r["name"], "path": str(r["fullPath"])} for r in results.getResults()]
+            return {"json": types}
+
+        elif action == "getUDTDefinition":
+            udt_path = data["udtPath"]
+            tags = system.tag.getConfiguration([udt_path], True)
+            if tags:
+                return {"json": tags[0]}
+            return {"json": {"error": "UDT not found: " + udt_path}, "response": {"code": 404}}
+
+        else:
+            return {"json": {"error": "Unknown action: " + str(action)}, "response": {"code": 400}}
+
+    except Exception as exc:
+        return gwutil.error_response(exc)
 ```
 
 **Configuration:**
@@ -155,79 +312,79 @@ IGNITION_MCP_WEBDEV_TAG_CONFIG_ENDPOINT=Global/GatewayAPI/tagConfig
 This endpoint backs `get_active_alarms`, `get_alarm_history`, and `acknowledge_alarms`.
 
 ```python
-# doPost handler
-import json
-from java.util import Date
-from java.text import SimpleDateFormat
-
-
-def _parse_iso(iso_str):
-    """Parse ISO 8601 string to Java Date."""
-    if iso_str is None:
-        return None
-    fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
-    return fmt.parse(iso_str)
-
-
 def doPost(request, session):
-    data = json.loads(request["data"])
-    action = data.get("action")
+    from GatewayAPI import util as gwutil
+    from java.text import SimpleDateFormat
 
-    if action == "getActive":
-        source_filter = data.get("sourceFilter", "")
-        priority_filter = data.get("priorityFilter", "")
-        state_filter = data.get("stateFilter", "")
-        alarms = system.alarm.queryStatus(
-            source=source_filter,
-            priority=priority_filter,
-            state=state_filter,
-        )
-        results = []
-        for alarm in alarms:
-            results.append(
-                {
-                    "eventId": str(alarm.eventId),
-                    "displayPath": str(alarm.displayPath),
-                    "source": str(alarm.source),
-                    "priority": str(alarm.priority),
-                    "state": str(alarm.state),
-                    "activeTime": str(alarm.activeTime),
-                    "ackTime": str(alarm.ackTime) if alarm.ackTime else None,
-                }
+    def _parse_iso(iso_str):
+        """Parse ISO 8601 string to Java Date."""
+        if iso_str is None:
+            return None
+        fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
+        return fmt.parse(iso_str)
+
+    try:
+        data = gwutil.parse_body(request)
+        action = data.get("action")
+
+        if action == "getActive":
+            source_filter = data.get("sourceFilter", "")
+            priority_filter = data.get("priorityFilter", "")
+            state_filter = data.get("stateFilter", "")
+            alarms = system.alarm.queryStatus(
+                source=source_filter,
+                priority=priority_filter,
+                state=state_filter,
             )
-        return {"json": results}
+            results = []
+            for alarm in alarms:
+                results.append(
+                    {
+                        "eventId": str(alarm.eventId),
+                        "displayPath": str(alarm.displayPath),
+                        "source": str(alarm.source),
+                        "priority": str(alarm.priority),
+                        "state": str(alarm.state),
+                        "activeTime": str(alarm.activeTime),
+                        "ackTime": str(alarm.ackTime) if alarm.ackTime else None,
+                    }
+                )
+            return {"json": results}
 
-    elif action == "getHistory":
-        start_time = _parse_iso(data.get("startTime"))
-        end_time = _parse_iso(data.get("endTime"))
-        source_filter = data.get("sourceFilter", "")
-        priority_filter = data.get("priorityFilter", "")
-        max_results = data.get("maxResults", 100)
-        results_ds = system.alarm.queryJournal(
-            startDate=start_time,
-            endDate=end_time,
-            source=source_filter,
-            priority=priority_filter,
-        )
-        entries = []
-        for i in range(min(results_ds.rowCount, max_results)):
-            row = {}
-            for col in range(results_ds.columnCount):
-                row[results_ds.getColumnName(col)] = str(results_ds.getValueAt(i, col))
-            entries.append(row)
-        return {"json": {"entries": entries, "total": results_ds.rowCount}}
+        elif action == "getHistory":
+            start_time = _parse_iso(data.get("startTime"))
+            end_time = _parse_iso(data.get("endTime"))
+            source_filter = data.get("sourceFilter", "")
+            priority_filter = data.get("priorityFilter", "")
+            max_results = data.get("maxResults", 100)
+            results_ds = system.alarm.queryJournal(
+                startDate=start_time,
+                endDate=end_time,
+                source=source_filter,
+                priority=priority_filter,
+            )
+            entries = []
+            for i in range(min(results_ds.rowCount, max_results)):
+                row = {}
+                for col in range(results_ds.columnCount):
+                    row[results_ds.getColumnName(col)] = str(results_ds.getValueAt(i, col))
+                entries.append(row)
+            return {"json": {"entries": entries, "total": results_ds.rowCount}}
 
-    elif action == "acknowledge":
-        event_ids = data["eventIds"]
-        ack_note = data.get("ackNote", "")
-        from java.util import UUID
+        elif action == "acknowledge":
+            event_ids = data["eventIds"]
+            ack_note = data.get("ackNote", "")
+            from java.util import UUID
 
-        uuid_list = [UUID.fromString(eid) for eid in event_ids]
-        system.alarm.acknowledge(uuid_list, ack_note)
-        return {"json": {"acknowledged": len(event_ids)}}
+            uuid_list = [UUID.fromString(eid) for eid in event_ids]
+            system.alarm.acknowledge(uuid_list, ack_note)
+            return {"json": {"acknowledged": len(event_ids)}}
 
-    else:
-        return {"json": {"error": "Unknown action: " + str(action)}, "response": {"code": 400}}
+        else:
+            return {"json": {"error": "Unknown action: " + str(action)}, "response": {"code": 400}}
+
+    except Exception as exc:
+        return gwutil.error_response(exc)
 ```
 
 **Configuration:**
@@ -242,54 +399,55 @@ IGNITION_MCP_WEBDEV_ALARM_ENDPOINT=Global/GatewayAPI/alarms
 This endpoint backs `get_tag_history`.
 
 ```python
-# doPost handler
-import json
-from java.text import SimpleDateFormat
-
-
-def _parse_iso(iso_str):
-    if iso_str is None:
-        return None
-    fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
-    return fmt.parse(iso_str)
-
-
 def doPost(request, session):
-    data = json.loads(request["data"])
-    tag_paths = data["tagPaths"]
-    start_time = _parse_iso(data["startTime"])
-    end_time = _parse_iso(data["endTime"])
-    aggregation = data.get("aggregation", "LastValue")
-    interval_ms = data.get("intervalMs")
-    max_results = data.get("maxResults", 1000)
+    from GatewayAPI import util as gwutil
+    from java.text import SimpleDateFormat
 
-    kwargs = {
-        "paths": tag_paths,
-        "startDate": start_time,
-        "endDate": end_time,
-        "aggregationMode": aggregation,
-        "returnSize": max_results,
-    }
-    if interval_ms:
-        kwargs["columnTimestampMode"] = "Interpolated"
-        kwargs["intervalHours"] = interval_ms / 3600000.0
+    def _parse_iso(iso_str):
+        if iso_str is None:
+            return None
+        fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
+        return fmt.parse(iso_str)
 
-    results_ds = system.tag.queryTagHistory(**kwargs)
+    try:
+        data = gwutil.parse_body(request)
+        tag_paths = data["tagPaths"]
+        start_time = _parse_iso(data["startTime"])
+        end_time = _parse_iso(data["endTime"])
+        aggregation = data.get("aggregation", "LastValue")
+        interval_ms = data.get("intervalMs")
+        max_results = data.get("maxResults", 1000)
 
-    # Convert dataset to JSON-serialisable structure
-    tags_out = []
-    for col_idx in range(results_ds.columnCount):
-        col_name = results_ds.getColumnName(col_idx)
-        if col_name == "Timestamp":
-            continue
-        values = []
-        for row_idx in range(min(results_ds.rowCount, max_results)):
-            ts = results_ds.getValueAt(row_idx, 0)  # column 0 is timestamp
-            v = results_ds.getValueAt(row_idx, col_idx)
-            values.append({"t": str(ts), "v": v})
-        tags_out.append({"path": col_name, "values": values})
+        kwargs = {
+            "paths": tag_paths,
+            "startDate": start_time,
+            "endDate": end_time,
+            "aggregationMode": aggregation,
+            "returnSize": max_results,
+        }
+        if interval_ms:
+            kwargs["columnTimestampMode"] = "Interpolated"
+            kwargs["intervalHours"] = interval_ms / 3600000.0
 
-    return {"json": {"tags": tags_out, "rowCount": results_ds.rowCount}}
+        results_ds = system.tag.queryTagHistory(**kwargs)
+
+        # Convert dataset to JSON-serialisable structure
+        tags_out = []
+        for col_idx in range(results_ds.columnCount):
+            col_name = results_ds.getColumnName(col_idx)
+            if col_name == "Timestamp":
+                continue
+            values = []
+            for row_idx in range(min(results_ds.rowCount, max_results)):
+                ts = results_ds.getValueAt(row_idx, 0)  # column 0 is timestamp
+                v = results_ds.getValueAt(row_idx, col_idx)
+                values.append({"t": str(ts), "v": v})
+            tags_out.append({"path": col_name, "values": values})
+
+        return {"json": {"tags": tags_out, "rowCount": results_ds.rowCount}}
+
+    except Exception as exc:
+        return gwutil.error_response(exc)
 ```
 
 **Configuration:**
@@ -309,17 +467,19 @@ This endpoint backs `run_gateway_script`. It is **disabled by default** on the M
 server side — you must also set `IGNITION_MCP_ENABLE_SCRIPT_EXECUTION=true`.
 
 ```python
-# doPost handler
-import json
-import hashlib
-import time
-import traceback
-
-logger = system.util.getLogger("GatewayAPI.scriptExec")
-
-
 def doPost(request, session):
-    data = json.loads(request["data"])
+    from GatewayAPI import util as gwutil
+    import hashlib
+    import time
+    import traceback
+
+    logger = system.util.getLogger("GatewayAPI.scriptExec")
+
+    try:
+        data = gwutil.parse_body(request)
+    except Exception as exc:
+        return gwutil.error_response(exc, code=400)
+
     script = data.get("script", "")
     timeout_secs = min(data.get("timeoutSecs", 10), 60)
     dry_run = data.get("dryRun", False)
@@ -429,6 +589,13 @@ curl -X POST \
   -u admin:password \
   -H "Content-Type: application/json" \
   -d '{"action": "getConfig", "tagPath": "[default]YourTag"}' \
+  http://localhost:8088/system/webdev/Global/GatewayAPI/tagConfig
+
+# Test UDT/tag creation (the 'configure' action)
+curl -X POST \
+  -u admin:password \
+  -H "Content-Type: application/json" \
+  -d '{"action":"configure","provider":"default","editMode":"a","tags":[{"name":"TestTag","tagType":"AtomicTag","valueSource":"memory","dataType":"Boolean","value":true}]}' \
   http://localhost:8088/system/webdev/Global/GatewayAPI/tagConfig
 ```
 

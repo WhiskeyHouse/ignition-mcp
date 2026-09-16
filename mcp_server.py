@@ -27,6 +27,23 @@ from ignition_mcp.tools import register_all
 
 logger = logging.getLogger("ignition-mcp")
 
+# Whether gateway error detail (body/traceback) is included in MCP tool errors.
+# Set by main() before mcp.run() — see _resolve_include_error_detail().
+_include_error_detail = True
+
+
+def _is_loopback(host: str) -> bool:
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
+def _resolve_include_error_detail(transport: str, host: str) -> bool:
+    """Full gateway error detail is only safe when the server can't be reached
+    remotely: stdio transport (parent/child pipe) or an HTTP server bound to
+    loopback. Otherwise return a generic message and log detail server-side."""
+    if settings.error_detail_override is not None:
+        return settings.error_detail_override
+    return transport == "stdio" or _is_loopback(host)
+
 
 # ---------------------------------------------------------------------------
 # Lifespan — one shared IgnitionClient for the server's lifetime
@@ -36,7 +53,7 @@ logger = logging.getLogger("ignition-mcp")
 @asynccontextmanager
 async def lifespan(server: FastMCP) -> AsyncGenerator[dict, None]:
     """Create and share a single IgnitionClient across all tool calls."""
-    client = IgnitionClient()
+    client = IgnitionClient(include_error_detail=_include_error_detail)
     logger.info("IgnitionClient initialised — %s", client.gateway_url)
     try:
         yield {"client": client}
@@ -65,6 +82,9 @@ def main() -> None:
     parser.add_argument("--host", default=settings.server_host)
     parser.add_argument("--port", type=int, default=settings.server_port)
     args = parser.parse_args()
+
+    global _include_error_detail
+    _include_error_detail = _resolve_include_error_detail(args.transport, args.host)
 
     if args.transport == "stdio":
         mcp.run(transport="stdio")

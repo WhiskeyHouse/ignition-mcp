@@ -205,6 +205,10 @@ async def create_tags(
     - tagType: 'AtomicTag', 'Folder', 'UdtInstance', etc.
     - dataType: 'Boolean', 'Int4', 'Float8', 'String', etc.
 
+    NOTE: 'path' has no effect for tagType 'UdtType' — Ignition always places UDT
+    type definitions under [provider]_types_ regardless of basePath. A warning is
+    returned in the response if 'path' is supplied on a UdtType tag and ignored.
+
     Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
     """
     client = _client(ctx)
@@ -238,6 +242,10 @@ async def edit_tags(
     Uses Ignition's system.tag.configure() with editMode='m' (merge).
     Existing tags have specified properties updated; non-specified properties
     are left unchanged. New tags are created if they don't exist.
+
+    NOTE: 'path' has no effect for tagType 'UdtType' — Ignition always places UDT
+    type definitions under [provider]_types_ regardless of basePath. A warning is
+    returned in the response if 'path' is supplied on a UdtType tag and ignored.
 
     Requires the WebDev tagConfig endpoint. See docs/webdev-setup.md.
     """
