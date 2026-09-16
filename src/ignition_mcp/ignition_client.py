@@ -76,6 +76,8 @@ class IgnitionClient:
                 detail = str(body["error"])
                 if "traceback" in body:
                     detail += "\n" + str(body["traceback"])
+                if "errorId" in body:
+                    detail += f" (gateway error id: {body['errorId']}, see gateway logs)"
             elif body is not None:
                 detail = str(body)
             else:
@@ -128,7 +130,10 @@ class IgnitionClient:
             else:
                 error_id = uuid.uuid4().hex[:8]
                 logger.error("gateway error [%s]: %s | body: %s", error_id, exc, self._error_detail(resp))
-                message = f"{exc} | error id: {error_id} (see server logs for details)"
+                message = (
+                    f"Gateway request failed (HTTP {resp.status_code}) | "
+                    f"error id: {error_id} (see server logs for details)"
+                )
             raise httpx.HTTPStatusError(
                 message, request=exc.request, response=exc.response
             ) from exc

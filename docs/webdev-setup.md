@@ -125,6 +125,9 @@ code the resource editor forbids, per quirk #2).
 
 import json
 import traceback
+import uuid
+
+_logger = system.util.getLogger("GatewayAPI.util")
 
 
 def parse_body(request):
@@ -137,12 +140,17 @@ def parse_body(request):
 
 
 def error_response(exc, code=500):
-    """Build a {"json": ...} WebDev response carrying the exception message
-    and full traceback, instead of letting it surface as a raw HTML error
-    page. Call from an `except Exception as exc:` block so the traceback
-    reflects the exception actually in flight."""
+    """Build a {"json": ...} WebDev response for a failed endpoint call.
+
+    This endpoint is reachable by any authenticated WebDev caller, so the
+    exception and traceback are logged server-side under a correlation id
+    rather than returned in the response — callers get only a generic
+    message and that id. Call from an `except Exception as exc:` block so
+    the traceback reflects the exception actually in flight."""
+    error_id = str(uuid.uuid4())[:8]
+    _logger.error("[%s] %s\n%s" % (error_id, exc, traceback.format_exc()))
     return {
-        "json": {"error": str(exc), "traceback": traceback.format_exc()},
+        "json": {"error": "Request failed", "errorId": error_id},
         "response": {"code": code},
     }
 ```
