@@ -90,7 +90,7 @@ check these first — they're the most likely culprits:
    and `getUDTDefinition` may be unusable until IA patches it — browse the
    tag/UDT structure manually in Designer as a fallback.
 
-7. **`'path' has no effect for `tagType: 'UdtType'`.** Ignition always places
+7. **`path` has no effect for `tagType: 'UdtType'`.** Ignition always places
    UDT type definitions under `[provider]_types_` regardless of the base path
    you send. The `configure` action below groups tags by resolved base path
    and drops (with a warning) any `path` supplied on a `UdtType` tag, rather
