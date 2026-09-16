@@ -5,12 +5,16 @@ Constructed once in the FastMCP lifespan and shared across all tool calls.
 """
 
 import base64
+import logging
+import uuid
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import quote
 
 import httpx
 
 from .config import settings
+
+logger = logging.getLogger("ignition-mcp")
 
 
 class IgnitionClient:
@@ -23,12 +27,18 @@ class IgnitionClient:
         password: Optional[str] = None,
         api_key: Optional[str] = None,
         ssl_verify: Optional[bool] = None,
+        include_error_detail: bool = True,
     ):
         self.gateway_url = (gateway_url or settings.ignition_gateway_url).rstrip("/")
         self.username = username or settings.ignition_username
         self.password = password or settings.ignition_password
         self.api_key = api_key or settings.ignition_api_key
         self._verify = ssl_verify if ssl_verify is not None else settings.ssl_verify
+        # Whether to include the gateway's raw error body/traceback in errors
+        # returned to MCP callers. False when the server may be network-reachable
+        # (see mcp_server.py's transport/host auto-detect) — full detail is then
+        # logged server-side under a correlation id instead.
+        self.include_error_detail = include_error_detail
 
         self._client = httpx.AsyncClient(
             base_url=self.gateway_url, timeout=30.0, verify=self._verify
@@ -113,10 +123,14 @@ class IgnitionClient:
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            if self.include_error_detail:
+                message = f"{exc} | body: {self._error_detail(resp)}"
+            else:
+                error_id = uuid.uuid4().hex[:8]
+                logger.error("gateway error [%s]: %s | body: %s", error_id, exc, self._error_detail(resp))
+                message = f"{exc} | error id: {error_id} (see server logs for details)"
             raise httpx.HTTPStatusError(
-                f"{exc} | body: {self._error_detail(resp)}",
-                request=exc.request,
-                response=exc.response,
+                message, request=exc.request, response=exc.response
             ) from exc
 
         if raw_response:

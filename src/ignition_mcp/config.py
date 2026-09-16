@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -92,6 +94,15 @@ class Settings(BaseSettings):
     server_host: str = Field(default="127.0.0.1", description="Host to bind the MCP server to")
 
     server_port: int = Field(default=8007, description="Port to bind the MCP server to")
+
+    error_detail_override: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Force gateway error detail (body/traceback) on or off in MCP tool errors. "
+            "Leave unset to auto-detect: full detail for stdio transport or a loopback "
+            "--host, a generic message (logged server-side) otherwise."
+        ),
+    )
 
 
 settings = Settings()
