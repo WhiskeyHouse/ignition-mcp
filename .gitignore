@@ -218,3 +218,4 @@ Thumbs.db
 # Local MCP config (contains API keys / machine-specific paths)
 .mcp.json
 .worktrees/
+.superpowers/
