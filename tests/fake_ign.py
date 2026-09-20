@@ -2,7 +2,7 @@
 """A stand-in for `ign` that speaks enough of `ign mcp serve` for tests.
 
 Protocol: newline-delimited JSON-RPC 2.0 on stdio, exactly like ign.
-Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | dirty | crash_once.
+Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | dirty | crash_once | identical.
 """
 
 import json
@@ -83,49 +83,127 @@ def envelope(name, args):
     if name == "doctor":
         return ok({"checks": [{"name": "disk", "ok": True}], "healthy": True})
     if name == "workspace_status":
+        dirty = SCENARIO == "dirty"
+        changed = ["views/Main.json"] if dirty else []
         return ok(
             {
-                "dirty": SCENARIO == "dirty",
-                "changed": ["views/Main.json"] if SCENARIO == "dirty" else [],
+                "project": "Demo",
+                "clean": not dirty,
+                "rows": [{"path": p, "kind": "modified"} for p in changed],
             }
         )
     if name == "project_sync":
-        return ok({"pushed": 3})
+        return ok(
+            {
+                "scope": "project",
+                "profile_a": args.get("profile_a"),
+                "profile_b": args.get("profile_b"),
+                "project": args.get("project"),
+                "synced": ["views/Main.json"],
+                "removed": [],
+            }
+        )
     if name == "project_diff":
-        return ok({"changed": [], "added": [], "removed": []})
+        if SCENARIO == "identical":
+            summary = {"same": 10, "added": 0, "removed": 0, "changed": 0}
+        else:
+            summary = {"same": 10, "added": 1, "removed": 0, "changed": 2}
+        return ok(
+            {
+                "scope": "project",
+                "profile_a": args.get("profile_a"),
+                "profile_b": args.get("profile_b"),
+                "project": args.get("project"),
+                "project_meta": [],
+                "summary": summary,
+            }
+        )
     if name in ("rig_down", "rig_up", "wait_gateway"):
         return ok({"done": name})
     if name == "rig_status":
         return ok({"containers": [{"name": "gw", "state": "running"}]})
     if name == "tags_browse":
+        path = args.get("path")
+        by_path = {
+            "[default]Line1": [
+                {
+                    "path": "[default]Line1/Speed",
+                    "name": "Speed",
+                    "tag_type": "AtomicTag",
+                    "has_children": False,
+                },
+                {
+                    "path": "[default]Line1/Sub",
+                    "name": "Sub",
+                    "tag_type": "Folder",
+                    "has_children": True,
+                },
+                {
+                    "path": "[default]Line1/Count",
+                    "name": "Count",
+                    "tag_type": "AtomicTag",
+                    "has_children": False,
+                },
+            ],
+            "[default]Line1/Sub": [
+                {
+                    "path": "[default]Line1/Sub/Temp",
+                    "name": "Temp",
+                    "tag_type": "AtomicTag",
+                    "has_children": False,
+                },
+            ],
+        }
+        entries = by_path.get(path, [])
         return ok(
-            [
-                {"path": "[default]Line1/Speed", "type": "AtomicTag"},
-                {"path": "[default]Line1", "type": "Folder"},
-                {"path": "[default]Line1/Count", "type": "AtomicTag"},
-            ]
+            {
+                "project": "Demo",
+                "path": path,
+                "filter": args.get("filter"),
+                "include_properties": args.get("include-properties", False),
+                "entries": entries,
+            }
         )
     if name == "tags_read":
-        paths = args.get("paths") or args.get("path") or []
+        paths = args.get("paths") or []
         if isinstance(paths, str):
             paths = [paths]
         return ok(
-            [
-                {
-                    "path": p,
-                    "value": 42,
-                    "quality": "Good",
-                    "timestamp": "2026-09-20T00:00:00Z",
-                }
-                for p in paths
-            ]
+            {
+                "project": "Demo",
+                "results": [
+                    {
+                        "path": p,
+                        "value": 42,
+                        "quality": "Good",
+                        "timestamp": "2026-09-20T00:00:00Z",
+                    }
+                    for p in paths
+                ],
+            }
         )
     if name == "tags_alarms_active":
         return ok(
-            [
-                {"source": "[default]Line1/Speed", "priority": "High", "name": "OverSpeed"},
-                {"source": "[default]Line2/Temp", "priority": "Low", "name": "Warm"},
-            ]
+            {
+                "project": "ign-cli",
+                "alarms": [
+                    {
+                        "event_id": "1",
+                        "source": "[default]Line1/Speed",
+                        "state": "Active",
+                        "priority": "High",
+                        "name": "OverSpeed",
+                    },
+                    {
+                        "event_id": "2",
+                        "source": "[default]Line2/Temp",
+                        "state": "Active",
+                        "priority": "Low",
+                        "name": "Warm",
+                    },
+                ],
+                "count": 2,
+            }
         )
     if name == "profile_list":
         return ok(
@@ -137,7 +215,7 @@ def envelope(name, args):
     if name == "project_list":
         return ok([{"name": "Demo", "enabled": True}])
     if name == "logs":
-        n = int(args.get("lines") or args.get("n") or 200)
+        n = int(args.get("limit") or 200)
         return ok([{"level": "INFO", "message": f"line {i}"} for i in range(n)])
     return fail("unknown_tool", f"no such tool {name}")
 
@@ -151,7 +229,7 @@ def catalog():
         if name == "tags_read":
             props["paths"] = {"type": "array", "items": {"type": "string"}}
         if name == "logs":
-            props["lines"] = {"type": "integer"}
+            props["limit"] = {"type": "string"}
         tools.append(
             {
                 "name": name,
