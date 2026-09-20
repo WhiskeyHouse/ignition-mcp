@@ -1,7 +1,7 @@
 import type {Config} from '@docusaurus/types';
 const config: Config = {
   "title": "ignition-mcp",
-  "tagline": "An MCP server for Ignition 8.3+ gateway operations, with optional WebDev endpoints for runtime data.",
+  "tagline": "A local HTTP front for `ign mcp serve`: every ign tool, plus composite workflows, resources, and prompts.",
   "favicon": "img/favicon.svg",
   "url": "https://whiskeyhouse.github.io",
   "baseUrl": "/ignition-mcp/",

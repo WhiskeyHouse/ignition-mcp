@@ -1,1 +1,1 @@
-export default {docsSidebar: ["installation", "quickstart", "configuration", "api-reference", "webdev-setup", "examples", "troubleshooting", "contributing"]};
+export default {docsSidebar: ["installation", "quickstart", "configuration", "reference", "troubleshooting"]};
