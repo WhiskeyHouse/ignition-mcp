@@ -1,76 +1,87 @@
-"""Shared test fixtures for ignition-mcp."""
-
-import os
+import stat
 import sys
-from unittest.mock import AsyncMock, MagicMock
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 import pytest
+from fastmcp import Client
 
-# Ensure src/ is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from ignition_mcp.config import Settings
 
-
-@pytest.fixture
-def mock_httpx_response():
-    """Factory for creating mock httpx.Response objects."""
-
-    def _make(
-        status_code: int = 200,
-        json_data: dict | list | None = None,
-        text: str = "",
-        content: bytes = b"",
-        headers: dict | None = None,
-    ):
-        resp = MagicMock()
-        resp.status_code = status_code
-        resp.text = text
-        resp.content = content
-        resp.headers = headers or {}
-        if json_data is not None:
-            resp.json.return_value = json_data
-            resp.headers.setdefault("content-type", "application/json")
-        resp.raise_for_status = MagicMock()
-        if status_code >= 400:
-            from httpx import HTTPStatusError, Request, Response
-
-            real_resp = Response(status_code)
-            resp.raise_for_status.side_effect = HTTPStatusError(
-                f"{status_code}", request=Request("GET", "http://test"), response=real_resp
-            )
-        return resp
-
-    return _make
+FAKE = Path(__file__).with_name("fake_ign.py")
 
 
 @pytest.fixture
-def mock_client(mock_httpx_response):
-    """Create an IgnitionClient with a mocked httpx.AsyncClient."""
-    from ignition_mcp.ignition_client import IgnitionClient
-
-    client = IgnitionClient(
-        gateway_url="http://test-gateway:8088",
-        api_key="test-api-key",
-        ssl_verify=False,
-    )
-    # Replace the real httpx client with an AsyncMock
-    client._client = AsyncMock()
-    return client
+def ign_bin(tmp_path: Path) -> str:
+    shim = tmp_path / "ign"
+    shim.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE}" "$@"\n')
+    shim.chmod(shim.stat().st_mode | stat.S_IXUSR)
+    return str(shim)
 
 
 @pytest.fixture
-def webdev_settings(monkeypatch):
-    """Patch settings to enable all WebDev endpoints with their conventional paths."""
-    from ignition_mcp import config
+def scenario(monkeypatch, tmp_path):
+    def _set(name: str, version: str = "1.2.0"):
+        monkeypatch.setenv("FAKE_IGN_SCENARIO", name)
+        monkeypatch.setenv("FAKE_IGN_VERSION", version)
+        monkeypatch.setenv("FAKE_IGN_CRASH_MARK", str(tmp_path / "crashed"))
 
-    monkeypatch.setattr(config.settings, "webdev_tag_endpoint", "Global/GatewayAPI/tags")
-    monkeypatch.setattr(
-        config.settings, "webdev_tag_config_endpoint", "Global/GatewayAPI/tagConfig"
-    )
-    monkeypatch.setattr(config.settings, "webdev_alarm_endpoint", "Global/GatewayAPI/alarms")
-    monkeypatch.setattr(
-        config.settings, "webdev_tag_history_endpoint", "Global/GatewayAPI/tagHistory"
-    )
-    monkeypatch.setattr(
-        config.settings, "webdev_script_exec_endpoint", "Global/GatewayAPI/scriptExec"
-    )
+    _set("healthy")
+    return _set
+
+
+@pytest.fixture
+def settings(ign_bin, scenario) -> Settings:
+    return Settings(ign_bin=ign_bin, profile="uat")
+
+
+@pytest.fixture
+async def backend(settings):
+    from ignition_mcp.ign import IgnBackend
+
+    b = IgnBackend(settings)
+    await b.start()
+    try:
+        yield b
+    finally:
+        await b.stop()
+
+
+@pytest.fixture
+async def client(settings, backend):
+    from ignition_mcp.server import build_server
+
+    server = build_server(settings, backend)
+    async with Client(server) as c:
+        yield c
+
+
+@asynccontextmanager
+async def client_with_scenario(settings, scenario, name: str):
+    """Build a fresh backend+client with `name` already baked into the fake
+    ign subprocess's environment. The shared `client`/`backend` fixtures spawn
+    the fake ign subprocess up front with the default `healthy` scenario, so
+    calling `scenario(...)` inside a test body that only depends on those
+    fixtures is too late: env vars are inherited at subprocess spawn, not
+    polled afterward. Tests that need a non-default scenario build their own
+    backend here, mirroring tests/test_backend.py.
+    """
+    from ignition_mcp.ign import IgnBackend
+    from ignition_mcp.server import build_server
+
+    scenario(name)
+    backend = IgnBackend(settings)
+    await backend.start()
+    try:
+        server = build_server(settings, backend)
+        async with Client(server) as c:
+            yield c
+    finally:
+        await backend.stop()
+
+
+def envelope_of(result) -> dict:
+    """Parse the single text block ign returns into its envelope dict."""
+    import json
+
+    return json.loads(result.content[0].text)

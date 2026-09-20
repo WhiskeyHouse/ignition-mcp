@@ -1,0 +1,369 @@
+{
+  "ign_version": "1.2.0",
+  "tools": [
+    {
+      "name": "adopt",
+      "description": "Adopt this profile's gateway: native login \u2192 mint an Administrator-level API key (idempotent by name) \u2192 wire the gateway's read/write permissions \u2192 live-probe the key \u2192 persist the credential (OS keyring, env-var fallback). Re-run on an adopted gateway is an all-skip no-op. Composition flags ride the bootstrap: --project deploys the CLI's WebDev routes, --checkout lands every enabled project locally, --bake saves a restore-ready gwbk"
+    },
+    {
+      "name": "api_call",
+      "description": "Call any gateway REST endpoint raw: `--method`/`--path` are the request, `--data`/`--header`/`--query` shape it, and the envelope's `data.result.data` is the gateway's JSON VERBATIM (no field dropped, no value coerced, key order preserved \u2014 the README's documented contract exception). Auth-pattern headers (`Authorization`, `X-Ignition-API-Token`, `Cookie`) are refused pre-I/O \u2014 credentials come from the profile"
+    },
+    {
+      "name": "backup_download",
+      "description": "Download a gwbk backup (streamed to disk)"
+    },
+    {
+      "name": "backup_restore",
+      "description": "Restore a gwbk onto THIS gateway \u2014 destructive, refused without --yes; the gateway restarts and blocks for minutes after the restore"
+    },
+    {
+      "name": "connections",
+      "description": "List database/OPC connections with healthcheck status as reported"
+    },
+    {
+      "name": "diagnostics_bundle_download",
+      "description": "Download the bundle ZIP (streamed to disk; the request rides a 300 s per-request timeout \u2014 the 30 s client default would truncate MB-sized bundles)"
+    },
+    {
+      "name": "diagnostics_bundle_generate",
+      "description": "Start bundle generation (POST, no body) \u2014 the 200 answer IS the fresh status (live capture: `{\"state\":\"Generating\"}`); generation takes ~2\u20136 s on a fresh rig, so pair with `wait`"
+    },
+    {
+      "name": "diagnostics_bundle_status",
+      "description": "The bundle status: `state` rides the CAPTURED vocabulary (`Generating` / `Valid` \u2014 unknown future states pass through verbatim, never refused); `fileSize` (bytes) appears only when `Valid`"
+    },
+    {
+      "name": "diagnostics_bundle_wait",
+      "description": "Poll the status until a terminal captured state (`Valid`) \u2014 an UNKNOWN state (outside the captured vocabulary) keeps polling honestly until the deadline; deadline expiry is exit 4 `network_error` (the restart-wait convention, no new slug) with the last observed state in the message"
+    },
+    {
+      "name": "doctor",
+      "description": "Diagnose the gateway setup: URL, liveness, commissioning, auth, permissions, write, WebDev route, rig \u2014 exits 0 whenever the diagnosis completes (failing checks are data)"
+    },
+    {
+      "name": "e2e_doctor",
+      "description": "Diagnose the browser-E2E setup: node (\u226520), npm, @playwright/test in the scaffold, a downloaded chromium, the gateway's testing bundle, and the gateway's trial state. Read-only and offline-safe \u2014 **exits 0 whenever the diagnosis completes**, so every finding is a `checks[]` row rather than an exit code. The two gateway rows report `skip` when no profile resolves or no --project is given"
+    },
+    {
+      "name": "e2e_init",
+      "description": "Scaffold a Playwright E2E suite into DIR (default ./e2e): a runner config, a global setup that logs in through `ign session login` and gates on `ign testing run`, gateway tag/ script helpers, an example suite, a .gitignore, and a README \u2014 then `npm install`. **Idempotent**: an existing file is reported `skipped` and never overwritten. Requires the global --yes; without it the verb writes nothing, spawns nothing, and refuses exit 2 after previewing every file and both commands"
+    },
+    {
+      "name": "eam_history",
+      "description": "EAM task run history (the gateway's own newest-first order)"
+    },
+    {
+      "name": "eam_task_cancel",
+      "description": "Cancel a task's PENDING execution (TASK-scoped). Refused exit 2 without --yes with the blast-radius preview in the message; nothing pending is an honest no-op (`fired: false`), a `canCancel: false` row reports the gateway's own refusal"
+    },
+    {
+      "name": "eam_task_delete",
+      "description": "Delete a task definition \u2014 signature-keyed (the gateway refuses a stale signature), behind the same --yes guard. Refused exit 2 without --yes with the blast-radius preview in the message"
+    },
+    {
+      "name": "eam_task_force",
+      "description": "Force-dispatch a task NOW \u2014 destructive, refused without --yes (it dispatches to the agent targets immediately). The confirmation prompt (and every refusal) carries the blast-radius preview line"
+    },
+    {
+      "name": "eam_task_modify",
+      "description": "Rewrite targeted keys of a task definition \u2014 the full-record read-modify-write (every key the gateway answered rides back; only the targeted keys change). Rename is deliberately ABSENT (the wire answers PUT-rename with 404 \u2014 see README's create-new + delete-old composite). Refused exit 2 without --yes with the blast-radius preview in the message"
+    },
+    {
+      "name": "eam_task_new",
+      "description": "Create a task definition (scheduleMode defaults to OnDemand \u2014 never auto-fires)"
+    },
+    {
+      "name": "eam_task_resume",
+      "description": "Resume a suspended task definition \u2014 the suspend inverse (TASK-scoped, like suspend). Refused exit 2 without --yes with the blast-radius preview in the message"
+    },
+    {
+      "name": "eam_task_suspend",
+      "description": "Suspend a task definition's scheduled dispatches \u2014 TASK-scoped runtime verb (there is NO agent-level suspend on the wire; an \"agent\" is suspended by suspending its tasks). Refused exit 2 without --yes, the blast-radius preview in the refusal message; on a stock gateway the runtime seam honestly refuses `eam_not_controller` (exit 6)"
+    },
+    {
+      "name": "eam_tasks",
+      "description": "Task definitions: bare `ign eam tasks` lists; with a name shows one definition + its scheduled state"
+    },
+    {
+      "name": "gan_status",
+      "description": "The GAN overview: total/running connections, in/out byte rates, remote gateways \u2014 all zeros are healthy data on a non-GAN gateway (the capture IS the canonical shape)"
+    },
+    {
+      "name": "license_status",
+      "description": "License inventory + trial state in ONE command: the hardware-key item rows and effective stamp ride the `/licenses` read, the license mode + countdown ride the trial companion (the mode is NOT on the licenses payload \u2014 capture fact)"
+    },
+    {
+      "name": "lint",
+      "description": "Lint local project files by delegating to ignition-lint (PATH discovery) \u2014 doctor posture: findings are DATA, exit 0 whenever the tool ran; --strict passes the tool's exit code through for CI"
+    },
+    {
+      "name": "logs",
+      "description": "Query, tail, and download gateway logs; manage logger levels"
+    },
+    {
+      "name": "logs_download",
+      "description": "Download the log archive \u2014 a SQLite .idb, never a zip"
+    },
+    {
+      "name": "logs_loggers",
+      "description": "List loggers / manage logger levels"
+    },
+    {
+      "name": "logs_loggers_reset",
+      "description": "Reset ALL logger levels to defaults \u2014 refused without --yes"
+    },
+    {
+      "name": "logs_loggers_set",
+      "description": "Set one logger's level \u2014 a mutation, refused without --yes"
+    },
+    {
+      "name": "metrics",
+      "description": "Gateway performance metrics (current gauges + thread counts)"
+    },
+    {
+      "name": "modules",
+      "description": "List gateway modules (healthy by default)"
+    },
+    {
+      "name": "profile_add",
+      "description": "Add (or overwrite) a gateway profile"
+    },
+    {
+      "name": "profile_list",
+      "description": "List configured profiles"
+    },
+    {
+      "name": "profile_use",
+      "description": "Switch the active profile"
+    },
+    {
+      "name": "project_copy",
+      "description": "Copy a project with all its resources"
+    },
+    {
+      "name": "project_delete",
+      "description": "Delete a project \u2014 destructive, refused without --yes"
+    },
+    {
+      "name": "project_diff",
+      "description": "Compare a project across two gateway profiles \u2014 statuses are B-relative-to-A (`added` = in B only, `removed` = in A only, `changed` = differing after resource.json normalization)"
+    },
+    {
+      "name": "project_export",
+      "description": "Export a project as a ZIP archive (streams to disk)"
+    },
+    {
+      "name": "project_import",
+      "description": "Import a project from a ZIP archive"
+    },
+    {
+      "name": "project_list",
+      "description": "List every runnable project: name, title, enabled, parent, inheritable (inheritance info from the items themselves)"
+    },
+    {
+      "name": "project_new",
+      "description": "Create a project (only provided fields ride the create body)"
+    },
+    {
+      "name": "project_rename",
+      "description": "Rename a project (native rename, not copy+delete)"
+    },
+    {
+      "name": "project_set",
+      "description": "Set project fields \u2014 --parent IS the inheritance move (reparent)"
+    },
+    {
+      "name": "project_sync",
+      "description": "Promote selected resources from profile A into profile B (direction is ALWAYS A\u2192B) \u2014 destructive on B: the whole project is overwrite-imported, refused without --yes"
+    },
+    {
+      "name": "redundancy_status",
+      "description": "The flat redundancy status: role, project state, peer connection, config access, sync/failover pending, uptime (ms since gateway start \u2014 capture-proven) and last-sync (the `-1` never-synced sentinel on fresh rigs)"
+    },
+    {
+      "name": "resource_delete",
+      "description": "Delete one resource \u2014 destructive, refused without --yes"
+    },
+    {
+      "name": "resource_get",
+      "description": "Read one resource: JSON pretty-printed, text raw \u2014 binary (data.bin-class) resources refuse with exit 6"
+    },
+    {
+      "name": "resource_list",
+      "description": "List a project's resources (one path per line in human mode)"
+    },
+    {
+      "name": "resource_put",
+      "description": "Write one resource (upsert: created if absent, replaced if present) \u2014 JSON if parseable (application/json), else UTF-8 text (text/plain); binary-looking input refuses"
+    },
+    {
+      "name": "restart",
+      "description": "Restart the gateway \u2014 destructive, refused without --yes; --wait polls until RUNNING"
+    },
+    {
+      "name": "rig_down",
+      "description": "Stop the rig (compose down --remove-orphans; volumes KEPT \u2014 `reset` owns the teardown half)"
+    },
+    {
+      "name": "rig_logs",
+      "description": "Stream the rig's container logs (compose logs passthrough \u2014 raw lines, no envelope in any mode; the third streaming exception, README-documented)"
+    },
+    {
+      "name": "rig_reset",
+      "description": "Tear the rig down AND remove its volumes (down -v --remove-orphans), then bring it back up fresh \u2014 destructive, refused without --yes; no stale project/trial state survives"
+    },
+    {
+      "name": "rig_restore",
+      "description": "Restore a gwbk onto the rig's gateway \u2014 destructive, refused without --yes; synchronous restore + restart, then a witnessed RUNNING wait"
+    },
+    {
+      "name": "rig_snapshot",
+      "description": "Snapshot the rig's gateway: native gwbk (roaming backup, streamed) + per-project exports + manifest.json, composed in a timestamped directory \u2014 repeatable state"
+    },
+    {
+      "name": "rig_status",
+      "description": "Structured status: services, ports, volumes (allowlist JSON; a down rig is exit-0 data)"
+    },
+    {
+      "name": "rig_trial_reset",
+      "description": "Reset an EXPIRED trial to a fresh window \u2014 destructive, refused without --yes. Mechanism ladder: API-token POST (IGNITION_TOKEN) \u2192 native gateway login (--user / IGNITION_USER + IGNITION_PASSWORD). Non-expired trials refuse (trial_not_expired)"
+    },
+    {
+      "name": "rig_trial_status",
+      "description": "Show the trial state: licenseMode, trialState, seconds left, expired \u2014 plus the banners cross-check. No credential needed (the endpoints answer unauthenticated \u2014 fresh-rig friendly)"
+    },
+    {
+      "name": "rig_up",
+      "description": "Bring the rig up (compose up -d --wait) and wait for the gateway: RUNNING, or uncommissioned-as-data (exit 0 + wizard hint in warnings)"
+    },
+    {
+      "name": "script_run",
+      "description": "Execute gateway-side Python (Jython) \u2014 non-interactive, the route's entire purpose"
+    },
+    {
+      "name": "session_login",
+      "description": "Log in to the gateway and return the live session: the `webui-sid-*` cookie name and value, the CSRF token for `X-CSRF-Token`, the gateway URL, and `storage_state` \u2014 a Playwright `storageState` document ready to write straight to disk and point `use.storageState` at. The password is env-only (`IGNITION_PASSWORD`; missing exits 3, rejected exits 5). The cookie value and CSRF token are exposed ONLY under the global --json flag"
+    },
+    {
+      "name": "sessions",
+      "description": "List gateway sessions (designers, Perspective, Vision) \u2014 or terminate one via the `terminate` subcommand"
+    },
+    {
+      "name": "sessions_terminate",
+      "description": "Terminate (designer: prune / vision: close) a session \u2014 destructive, refused without --yes"
+    },
+    {
+      "name": "status",
+      "description": "Gateway status: identity, platform, uptime, license (incl. trial countdown)"
+    },
+    {
+      "name": "tags_alarms_ack",
+      "description": "Acknowledge alarms (explicit --username: the 3-arg wire form needs it). NOT --yes-guarded \u2014 acknowledging never un-acknowledges anything"
+    },
+    {
+      "name": "tags_alarms_active",
+      "description": "List active alarms \u2014 eventId/source/state/priority/name"
+    },
+    {
+      "name": "tags_alarms_history",
+      "description": "Query alarm history \u2014 requires a journal-provisioned gateway (default rigs refuse with the provisioning hint naming the missing chain)"
+    },
+    {
+      "name": "tags_browse",
+      "description": "Browse tags as a tree (Property children filtered by default) \u2014 providers appear at the root; needs the deployed routes (`ign webdev deploy`) \u2014 or run fully OFFLINE against an export via --from-export"
+    },
+    {
+      "name": "tags_config_create",
+      "description": "Create a tag from a JSON definition file (`-` = stdin) \u2014 aborts on an existing node (collision policy 'a')"
+    },
+    {
+      "name": "tags_config_delete",
+      "description": "Delete tag configurations \u2014 destructive, refused without --yes (the guard fires before ANY resolution: zero network work)"
+    },
+    {
+      "name": "tags_config_get",
+      "description": "Get a tag's configuration as (pretty) JSON \u2014 stringified value/defaultValue sub-dicts re-parsed into real JSON"
+    },
+    {
+      "name": "tags_export",
+      "description": "Export tag subtrees \u2014 json writes the gateway's native JSON interchange (the lossless round-trip); xml passes the gateway's own XML through byte-for-byte; csv is CLI-GENERATED and LOSSY (no alarms, legacy 48-column set, numeric enums \u2014 the gateway cannot export CSV)"
+    },
+    {
+      "name": "tags_history_query",
+      "description": "Query historical tag values \u2014 t_stamp + one column per tag; structurally safe anywhere (data requires a provisioned historian)"
+    },
+    {
+      "name": "tags_import",
+      "description": "Import a tag export into a target provider \u2014 json is the native interchange; xml/csv ride the gateway's importTags passthrough. A loss scan reports what xml/csv would drop or coerce BEFORE the import and refuses exit 2 unless --yes. Collision behavior: abort (default) refuses on collisions; overwrite replaces them (destructive: requires --yes)"
+    },
+    {
+      "name": "tags_provider_create",
+      "description": "Create a STANDARD tag provider (DB-backed providers are out of scope at MVP)"
+    },
+    {
+      "name": "tags_provider_delete",
+      "description": "Delete a tag provider \u2014 destructive, refused without --yes"
+    },
+    {
+      "name": "tags_provider_list",
+      "description": "List the gateway's tag providers (tag counts + health)"
+    },
+    {
+      "name": "tags_read",
+      "description": "Read one or more tag values (quality and timestamp included) \u2014 needs the deployed routes"
+    },
+    {
+      "name": "tags_udt_def",
+      "description": "Get a UDT definition (parameters + nested children, recursive)"
+    },
+    {
+      "name": "tags_udt_types",
+      "description": "List the provider's UDT types"
+    },
+    {
+      "name": "tags_write",
+      "description": "Write a value to a tag \u2014 the value is parsed as a JSON scalar (number/bool/null); anything unparseable is sent as a string; arrays/objects refuse \u2014 needs the deployed routes"
+    },
+    {
+      "name": "testing_run",
+      "description": "Run the gateway-side Jython test suite and return the machine verdict (exit 0 green, exit 6 red with the FULL results still in the envelope)"
+    },
+    {
+      "name": "version",
+      "description": "Print version information (CLI always; gateway check when a profile resolves)"
+    },
+    {
+      "name": "wait_gateway",
+      "description": "Wait until the gateway reports RUNNING (unauthenticated StatusPing \u2014 works even when auth is broken or absent)"
+    },
+    {
+      "name": "wait_module",
+      "description": "Wait until a module reports ACTIVE"
+    },
+    {
+      "name": "wait_restart",
+      "description": "Wait for a restart to complete \u2014 restart-aware: shares `restart --wait`'s semantics (non-RUNNING observed once \u2192 RUNNING; a 5 s floor guards the all-RUNNING case)"
+    },
+    {
+      "name": "webdev_deploy",
+      "description": "Deploy the embedded route bundle into the dedicated project (overwrite-replace \u2014 the CLI owns that project wholesale)"
+    },
+    {
+      "name": "webdev_status",
+      "description": "Probe every route's version handshake \u2014 a READ: exit 0 whenever the sweep completes, per-route degradation is data"
+    },
+    {
+      "name": "workspace_checkout",
+      "description": "Check out a project's resources to a local tree \u2014 mapped paths + the recorded `.ign-workspace.json` manifest + an idempotent `.gitignore` (manifest committed; codec artifacts ignored). Read-only on the wire: one export GET, zero imports"
+    },
+    {
+      "name": "workspace_push",
+      "description": "Push local edits to the gateway \u2014 guarded (refused without --yes; the refusal message IS the blast-radius preview); conflicts refuse EVEN WITH --yes (manual reconciliation); deletions need --delete (default: reported, skipped); untracked files are never imported; an empty selection writes nothing"
+    },
+    {
+      "name": "workspace_status",
+      "description": "Report workspace drift against the gateway \u2014 states are PUSH-RELATIVE (each row names what push would do: write / leave / refuse); the project comes from the workspace manifest, never re-typed. Read-only: one export GET"
+    }
+  ]
+}

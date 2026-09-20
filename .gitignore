@@ -222,3 +222,7 @@ Thumbs.db
 /website/node_modules/
 /website/build/
 /website/.docusaurus/
+
+# Local agent scratch
+.worktrees/
+.superpowers/
