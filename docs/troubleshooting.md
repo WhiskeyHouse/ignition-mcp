@@ -62,9 +62,11 @@ one, the result says the operation may have executed and the hint tells you to
 inspect gateway or rig state before sending it again. The session itself is
 rebuilt, so the next call works normally.
 
-This code also covers a reply that is not a well-formed ign envelope. The message
-then reads `ign returned a malformed envelope` and quotes what came back, which
-usually means the ign on `IGN_BIN` is not the version this server expects.
+This code also covers a reply that is not a well-formed ign envelope. There are
+two messages. `ign returned a non-envelope payload` means the reply was not JSON
+at all. `ign returned a malformed envelope` means it was JSON but not the
+`{ok, profile, data|error}` shape. Both quote what came back, and both usually
+mean the ign on `IGN_BIN` is not the version this server expects.
 
 ## `protocol_error`
 
