@@ -13,7 +13,7 @@ async def test_status_resource(client):
 
 
 async def test_logs_tail_template(client):
-    templates = {str(t.uriTemplate) for t in await client.list_resource_templates()}
+    templates = {str(t.uri_template) for t in await client.list_resource_templates()}
     assert "ign://logs/tail{?n}" in templates
     content = await client.read_resource("ign://logs/tail?n=5")
     env = json.loads(content[0].text)

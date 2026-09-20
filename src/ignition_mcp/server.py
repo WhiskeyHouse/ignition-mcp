@@ -8,6 +8,9 @@ from fastmcp.server.providers.proxy import FastMCPProxy
 from ignition_mcp import __version__
 from ignition_mcp.config import Settings
 from ignition_mcp.ign import IgnBackend
+from ignition_mcp.prompts import register_prompts
+from ignition_mcp.resources import register_resources
+from ignition_mcp.workflows import register_workflows
 
 INSTRUCTIONS = (
     "Every tool named like an `ign` verb (status, project_sync, tags_read, ...) is proxied "
@@ -26,15 +29,7 @@ def build_server(settings: Settings, backend: IgnBackend) -> FastMCP:
     proxy = FastMCPProxy(client_factory=lambda: backend.client, name="ign")
     mcp.mount(proxy)
 
-    for modname, fn in (
-        ("ignition_mcp.workflows", "register_workflows"),
-        ("ignition_mcp.resources", "register_resources"),
-        ("ignition_mcp.prompts", "register_prompts"),
-    ):
-        try:
-            module = __import__(modname, fromlist=[fn])
-        except ImportError:
-            continue
-        register = getattr(module, fn)
-        register(mcp, backend) if fn != "register_prompts" else register(mcp)
+    register_workflows(mcp, backend)
+    register_resources(mcp, backend)
+    register_prompts(mcp)
     return mcp
