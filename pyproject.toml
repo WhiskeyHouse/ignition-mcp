@@ -1,56 +1,42 @@
 [project]
 name = "ignition-mcp"
-version = "0.1.0"
-description = "MCP server for Ignition Gateway REST API automation"
-authors = [{name = "Your Name", email = "your.email@example.com"}]
-requires-python = ">=3.10"
+version = "1.0.0"
+description = "Local HTTP MCP front for `ign mcp serve` with composite workflows, resources, and prompts"
+requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "httpx>=0.25.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "mcp>=1.0.0",
-    "fastmcp>=2.12.3",
+    "fastmcp>=4",
+    "pydantic-settings>=2",
 ]
+
+[project.scripts]
+ign-mcp = "ignition_mcp.cli:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "mypy>=1.0.0",
-    "ruff>=0.1.0",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+    "mypy>=1.10",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I"]
-ignore = []
-
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+[tool.hatch.build.targets.wheel]
+packages = ["src/ignition_mcp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "module"
-asyncio_default_test_loop_scope = "module"
 testpaths = ["tests"]
 
-[dependency-groups]
-dev = [
-    "mypy>=1.18.1",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
-    "ruff>=0.13.0",
-]
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true

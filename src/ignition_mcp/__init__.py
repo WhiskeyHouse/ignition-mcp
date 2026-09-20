@@ -1,3 +1,3 @@
-"""Ignition MCP Server - Gateway REST API automation."""
+"""ignition-mcp: a local HTTP MCP front for `ign mcp serve`."""
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
