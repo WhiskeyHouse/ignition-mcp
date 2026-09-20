@@ -13,8 +13,9 @@ def register_prompts(mcp: FastMCP) -> None:
             "Check the active Ignition gateway's health.\n"
             "1. Call status. If ok is false, stop and report the error code and hint.\n"
             "2. Call license_status, redundancy_status, gan_status, connections, modules, doctor.\n"
-            "3. Report: version, uptime, license mode, any module not RUNNING, any database "
-            "connection not Valid, any failed doctor check.\n"
+            "3. Report: version, uptime, license mode, any module whose state is not ACTIVE "
+            "or RUNNING, any database connection with enabled: false, any doctor check whose "
+            "status is Fail.\n"
             "Shortcut: diagnose_gateway does steps 1 to 3 in one call and returns a verdict."
         )
 

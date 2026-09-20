@@ -335,10 +335,12 @@ def result_shapes_section() -> list[str]:
         + "}",
         "```",
         "",
-        "A composite that refuses before calling ign uses the same shape with `step: null`",
-        "and a synthesized error code: `confirmation_required` from `rig_fresh` called",
-        "without `confirm: true`, and `nothing_to_promote` from `deploy_project` when the two",
-        "profiles already match.",
+        "A composite that refuses rather than forwarding an ign failure uses the same shape",
+        "with `step: null` and a synthesized error code: `confirmation_required` from",
+        "`rig_fresh` called without `confirm: true`, `nothing_to_promote` from",
+        "`deploy_project` when the two profiles already match, and `verification_failed`",
+        "from `deploy_project` when the diff taken after the sync still shows added or",
+        "changed resources.",
     ]
 
 

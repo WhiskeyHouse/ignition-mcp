@@ -13,7 +13,7 @@ from typing import Any
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 from mcp.shared.exceptions import MCPError
-from mcp_types import CONNECTION_CLOSED, REQUEST_TIMEOUT
+from mcp_types import CONNECTION_CLOSED, INVALID_PARAMS, REQUEST_TIMEOUT
 
 from ignition_mcp.config import Settings
 
@@ -29,6 +29,13 @@ PING_TIMEOUT = 5.0
 # protocol-level error that must be reported back to the caller as-is.
 _TRANSPORT_MCP_ERROR_CODES = frozenset({CONNECTION_CLOSED, REQUEST_TIMEOUT})
 
+# Replaying a call whose `confirm` was true could execute a destructive
+# operation twice, so the restart path never retries one.
+DESTRUCTIVE_RETRY_HINT = (
+    "the ign child died during a confirmed destructive call; the operation may "
+    "have executed — inspect gateway/rig state before retrying"
+)
+
 
 class IgnUnavailable(RuntimeError):
     code = "ign_unavailable"
@@ -41,11 +48,47 @@ def parse_version(text: str) -> tuple[int, ...]:
     return tuple(int(g) for g in m.groups())
 
 
-def _unavailable_envelope(message: str) -> dict[str, Any]:
+def _unavailable_envelope(message: str, hint: str | None = None) -> dict[str, Any]:
     return {
         "ok": False,
         "profile": None,
-        "error": {"code": IgnUnavailable.code, "message": message, "endpoint": None, "hint": None},
+        "error": {"code": IgnUnavailable.code, "message": message, "endpoint": None, "hint": hint},
+    }
+
+
+def envelope_problem(env: Any) -> str | None:
+    """Why `env` is not a well-formed ign envelope, or None when it is.
+
+    Only the envelope's own frame is checked: `ok` must be a boolean and a
+    failure must carry `error.code` and `error.message` as strings. `data` is
+    ign's to shape and stays opaque here.
+    """
+    if not isinstance(env, dict):
+        return f"top level is {type(env).__name__}, not an object"
+    ok = env.get("ok")
+    if not isinstance(ok, bool):
+        return f"`ok` is {type(ok).__name__}, not a boolean"
+    if ok:
+        return None
+    error = env.get("error")
+    if not isinstance(error, dict):
+        return f"`ok` is false but `error` is {type(error).__name__}, not an object"
+    for field in ("code", "message"):
+        if not isinstance(error.get(field), str):
+            return f"`error.{field}` is {type(error.get(field)).__name__}, not a string"
+    return None
+
+
+def _protocol_error_envelope(exc: MCPError) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "profile": None,
+        "error": {
+            "code": "protocol_error",
+            "message": str(exc),
+            "endpoint": None,
+            "hint": None,
+        },
     }
 
 
@@ -81,9 +124,16 @@ class IgnBackend:
                 f"ign binary not found at {self._settings.ign_bin!r}; "
                 "set IGN_BIN or add ign to PATH"
             )
-        proc = await asyncio.create_subprocess_exec(
-            path, "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                path, "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+        except (OSError, ValueError) as e:
+            # Not executable, wrong architecture, not a real program: spawning
+            # raises rather than returning a process.
+            raise IgnUnavailable(
+                f"could not execute ign at {path!r}: {type(e).__name__}: {e}"
+            ) from e
         try:
             out, _ = await asyncio.wait_for(proc.communicate(), timeout=VERSION_TIMEOUT)
         except TimeoutError:
@@ -102,8 +152,17 @@ class IgnBackend:
                 f"{self._settings.min_ign_version} (IGN_BIN={path})"
             )
         self._path = path
-        self._client = self._new_client()
-        await self._client.__aenter__()
+        client = self._new_client()
+        try:
+            await client.__aenter__()
+        except Exception as e:
+            self._client = None
+            with contextlib.suppress(Exception):
+                await client.__aexit__(None, None, None)
+            raise IgnUnavailable(
+                f"ign mcp serve failed to start (IGN_BIN={path}): {type(e).__name__}: {e}"
+            ) from e
+        self._client = client
         self._gen += 1
 
     async def stop(self) -> None:
@@ -182,9 +241,12 @@ class IgnBackend:
             raise
         except MCPError as exc:
             if exc.code not in _TRANSPORT_MCP_ERROR_CODES:
-                # A JSON-RPC error response from a healthy child (bad
-                # arguments, unknown method, ...): report it, don't restart.
-                return _invalid_arguments_envelope(exc)
+                # A JSON-RPC error response from a healthy child: report it,
+                # don't restart. Only -32602 means ign rejected the arguments;
+                # any other code is a protocol-level fault of its own.
+                if exc.code == INVALID_PARAMS:
+                    return _invalid_arguments_envelope(exc)
+                return _protocol_error_envelope(exc)
             return await self._restart_and_retry(name, args or {}, gen, exc)
         except Exception as exc:  # child died mid-session: restart once
             return await self._restart_and_retry(name, args or {}, gen, exc)
@@ -201,6 +263,13 @@ class IgnBackend:
                         f"ign restart failed: {type(e).__name__}: {e} "
                         f"(after: {type(first).__name__}: {first})"
                     )
+        if args.get("confirm") is True:
+            # The session is rebuilt so later calls work, but this one is not
+            # replayed: the child may have died after ign acted on it.
+            return _unavailable_envelope(
+                f"ign died during a confirmed {name}: {type(first).__name__}: {first}",
+                hint=DESTRUCTIVE_RETRY_HINT,
+            )
         try:
             return await self._call_once(name, args)
         except Exception as second:
@@ -220,6 +289,12 @@ class IgnBackend:
         else:
             text = ""
         try:
-            return json.loads(text)
+            env = json.loads(text)
         except json.JSONDecodeError:
             return _unavailable_envelope(f"ign returned a non-envelope payload: {text[:200]!r}")
+        problem = envelope_problem(env)
+        if problem is not None:
+            return _unavailable_envelope(
+                f"ign returned a malformed envelope: {problem} ({text[:200]!r})"
+            )
+        return env

@@ -120,3 +120,91 @@ async def test_guarded_composites_confirm_not_required(client):
         schema = tools[name].input_schema
         assert "confirm" in schema["properties"]
         assert "confirm" not in schema.get("required", [])
+
+
+async def test_diagnose_gateway_degraded_on_failed_doctor_check(settings, scenario):
+    async with client_with_scenario(settings, scenario, "doctor_fail") as c:
+        out = envelope_of(await c.call_tool("diagnose_gateway", {}))
+    assert out["ok"] is True
+    assert out["verdict"] == "degraded"
+
+
+async def test_deploy_project_fails_verification_when_diff_remains(settings, scenario):
+    async with client_with_scenario(settings, scenario, "sync_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "deploy_project",
+                {"project": "Demo", "profile_a": "uat", "profile_b": "prod", "confirm": True},
+                raise_on_error=False,
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert "changed=1" in out["error"]["error"]["message"]
+    assert [s["tool"] for s in out["steps"]] == ["project_diff", "project_sync", "project_diff"]
+
+
+async def test_deploy_project_reports_pending_removals(settings, scenario):
+    async with client_with_scenario(settings, scenario, "pending_removals") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "deploy_project",
+                {"project": "Demo", "profile_a": "uat", "profile_b": "prod", "confirm": True},
+            )
+        )
+    assert out["ok"] is True
+    assert out["pending_removals"] == 2
+
+
+async def test_deploy_project_clean_verification_has_no_pending_removals(client):
+    out = envelope_of(
+        await client.call_tool(
+            "deploy_project",
+            {"project": "Demo", "profile_a": "uat", "profile_b": "prod", "confirm": True},
+        )
+    )
+    assert out["ok"] is True
+    assert "pending_removals" not in out
+
+
+async def test_tag_snapshot_exact_size_is_not_truncated(client):
+    out = envelope_of(
+        await client.call_tool("tag_snapshot", {"path": "[default]Line1", "max_tags": 3})
+    )
+    assert out["ok"] is True
+    assert len(out["tags"]) == 3
+    assert out["truncated"] is False
+    assert out["browse_budget_exhausted"] is False
+
+
+async def test_tag_snapshot_browse_budget(client):
+    out = envelope_of(
+        await client.call_tool("tag_snapshot", {"path": "[default]Line1", "max_browses": 1})
+    )
+    assert out["ok"] is True
+    assert out["browsed"] == 1
+    assert out["truncated"] is True
+    assert out["browse_budget_exhausted"] is True
+    assert {t["path"] for t in out["tags"]} == {
+        "[default]Line1/Speed",
+        "[default]Line1/Count",
+    }
+
+
+async def test_tag_snapshot_drops_tags_past_max_tags(client):
+    out = envelope_of(
+        await client.call_tool("tag_snapshot", {"path": "[default]Line1", "max_tags": 1})
+    )
+    assert out["ok"] is True
+    assert len(out["tags"]) == 1
+    assert out["truncated"] is True
+    assert out["browse_budget_exhausted"] is False
+
+
+async def test_find_alarms_priority_is_an_enum(client):
+    tools = {t.name: t for t in await client.list_tools()}
+    prop = tools["find_alarms"].input_schema["properties"]["min_priority"]
+    enum = prop.get("enum") or next(
+        (v.get("enum") for v in prop.get("anyOf", []) if v.get("enum")), None
+    )
+    assert enum == ["Diagnostic", "Low", "Medium", "High", "Critical"]

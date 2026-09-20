@@ -45,14 +45,35 @@ Or point a client at the included `mcp.example.json`.
 
 Gateway credentials: see `ign profile --help` (keychain or `IGNITION_TOKEN*` env).
 
+## Upgrading from the previous server
+
+`mcp_server.py`, `run_server.sh`, and the Docker image are gone; run `uv run ign-mcp`.
+The `IGNITION_MCP_*` settings are gone too. The gateway URL and credentials now live in
+`ign profile`, and the only settings left are the four in the table above.
+
+Run `ign adopt --project ign-cli` once per gateway to deploy the WebDev routes the tag
+and script verbs need.
+
+Old tool names map onto ign verbs:
+
+| Old | New |
+|-----|-----|
+| `get_gateway_info` | `status` |
+| `list_projects` | `project_list` |
+| `read_tags` | `tags_read` |
+| `write_tag` | `tags_write` |
+| `browse_tags` | `tags_browse` |
+| `get_active_alarms` | `tags_alarms_active` |
+| `run_gateway_script` | `script_run` |
+
 ## Composite tools
 
 | Tool | Steps | Guarded |
 |------|-------|---------|
 | `diagnose_gateway()` | status, license_status, redundancy_status, gan_status, connections, modules, doctor → `verdict` healthy/degraded/down | no |
-| `deploy_project(project, profile_a, profile_b, confirm=False, delete=False)` | project_diff → project_sync (all-changed) → project_diff; profile A→B promotion; refuses `nothing_to_promote` when identical | `confirm` |
+| `deploy_project(project, profile_a, profile_b, confirm=False, delete=False)` | project_diff → project_sync (all-changed) → project_diff; profile A→B promotion; refuses `nothing_to_promote` when identical and `verification_failed` when the second diff still shows added or changed resources; reports `pending_removals` when only removals are left and `delete` is false | `confirm` |
 | `rig_fresh(confirm=False)` | rig_down, rig_up, wait_gateway, status | `confirm` |
-| `tag_snapshot(path, max_depth=3, max_tags=500)` | tags_browse (recursed in Python) + tags_read | no |
+| `tag_snapshot(path, max_depth=3, max_tags=500, max_browses=50)` | tags_browse (recursed in Python, at most `max_browses` calls) + tags_read; reports `truncated` and `browse_budget_exhausted` | no |
 | `find_alarms(min_priority="Diagnostic", path_contains=None)` | tags_alarms_active, filtered | no |
 
 Results: `{"ok", "steps": [{tool, ok, code}], ...}`; on failure also `step` and `error` (the ign envelope).

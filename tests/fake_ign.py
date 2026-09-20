@@ -3,7 +3,8 @@
 
 Protocol: newline-delimited JSON-RPC 2.0 on stdio, exactly like ign.
 Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | dirty | crash_once |
-identical | module_faulted | garbage_shapes | garbage_text.
+identical | module_faulted | garbage_shapes | garbage_text | garbage_json | doctor_fail |
+sync_incomplete | method_missing.
 """
 
 import json
@@ -12,6 +13,9 @@ import sys
 
 VERSION = os.environ.get("FAKE_IGN_VERSION", "1.2.0")
 SCENARIO = os.environ.get("FAKE_IGN_SCENARIO", "healthy")
+# How many project_diff calls this process has answered: the second one is the
+# post-sync verification, so scenarios can make it differ from the first.
+DIFFS = 0
 PROFILE = None
 for i, a in enumerate(sys.argv):
     if a == "--profile" and i + 1 < len(sys.argv):
@@ -96,7 +100,21 @@ def envelope(name, args):
             }
         )
     if name == "doctor":
-        return ok({"checks": [{"name": "disk", "ok": True}], "healthy": True})
+        # Real `ign doctor` data: one row per check, status in Ok/Warn/Fail/Skip.
+        checks = [
+            {"name": "url", "status": "Ok", "detail": "http://localhost:18188/", "hint": None},
+            {"name": "auth", "status": "Ok", "detail": "token accepted", "hint": None},
+        ]
+        if SCENARIO == "doctor_fail":
+            checks.append(
+                {
+                    "name": "webdev",
+                    "status": "Fail",
+                    "detail": "ign-cli routes not deployed",
+                    "hint": "run ign adopt --project ign-cli",
+                }
+            )
+        return ok({"checks": checks})
     if name == "workspace_status":
         dirty = SCENARIO == "dirty"
         changed = ["views/Main.json"] if dirty else []
@@ -119,10 +137,20 @@ def envelope(name, args):
             }
         )
     if name == "project_diff":
+        global DIFFS
+        DIFFS += 1
         if SCENARIO == "identical":
             summary = {"same": 10, "added": 0, "removed": 0, "changed": 0}
-        else:
+        elif DIFFS == 1:
             summary = {"same": 10, "added": 1, "removed": 0, "changed": 2}
+        elif SCENARIO == "sync_incomplete":
+            # The sync claimed success but the profiles still differ.
+            summary = {"same": 12, "added": 0, "removed": 0, "changed": 1}
+        elif SCENARIO == "pending_removals":
+            # Everything landed; only resources ign would have to delete remain.
+            summary = {"same": 13, "added": 0, "removed": 2, "changed": 0}
+        else:
+            summary = {"same": 13, "added": 0, "removed": 0, "changed": 0}
         return ok(
             {
                 "scope": "project",
@@ -323,6 +351,22 @@ def serve():
                 os._exit(3)
             called = msg["params"]["name"]
             arguments = msg["params"].get("arguments") or {}
+            if SCENARIO == "method_missing" and called == "status":
+                # A JSON-RPC error that is not -32602: not an argument problem,
+                # so the proxy must report it as `protocol_error`.
+                if mid is not None:
+                    sys.stdout.write(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": mid,
+                                "error": {"code": -32601, "message": "method not found: status"},
+                            }
+                        )
+                        + "\n"
+                    )
+                    sys.stdout.flush()
+                continue
             extra_args = None
             if called in PROPERTIES:
                 extra_args = set(arguments) - set(_expected_properties(called))
@@ -351,6 +395,9 @@ def serve():
                 continue
             if SCENARIO == "garbage_text" and called == "status":
                 out = {"content": [{"type": "text", "text": "not json"}], "isError": False}
+            elif SCENARIO == "garbage_json" and called == "status":
+                # Valid JSON, but not an envelope at all.
+                out = {"content": [{"type": "text", "text": "[1, 2]"}], "isError": False}
             else:
                 env = envelope(called, arguments)
                 out = {

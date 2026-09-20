@@ -29,8 +29,9 @@ envelope:
 ```
 
 The verdict is `down` when `status` itself fails, `degraded` when a later step
-fails, when a module reports a state other than `ACTIVE` or `RUNNING`, or when a
-database connection has `enabled: false`, and `healthy` otherwise.
+fails, when a module reports a state other than `ACTIVE` or `RUNNING`, when a
+database connection has `enabled: false`, or when a doctor check reports status
+`Fail`, and `healthy` otherwise.
 
 ## Read a resource
 
@@ -43,16 +44,17 @@ number of log lines and defaults to 200.
 
 Run the `health_check` prompt. It takes no arguments and returns a short runbook:
 call `status`, stop if it failed, then call the six other reads, then report the
-version, uptime, license mode, any module not running, any invalid database
-connection, and any failed doctor check. It names `diagnose_gateway` as the one-call
-shortcut.
+version, uptime, license mode, any module whose state is not `ACTIVE` or `RUNNING`,
+any database connection with `enabled: false`, and any doctor check whose status is
+`Fail`. It names `diagnose_gateway` as the one-call shortcut.
 
 The other prompts are `bring_up_rig`, `sync_project(project, profile_a, profile_b)`,
 and `triage_alarm(path)`.
 
 ## A guarded call
 
-Destructive ign verbs refuse until you pass `confirm: true`. Call `project_sync`
+Guarded ign verbs (those whose schema has a `confirm` property) refuse until you
+pass `confirm: true`. Call `project_sync`
 with `profile_a`, `profile_b`, and `project` but no `confirm`:
 
 ```json
@@ -64,8 +66,10 @@ with `profile_a`, `profile_b`, and `project` but no `confirm`:
 Nothing happened on the gateway. Repeat the call with `confirm: true` added and it
 executes.
 
-`deploy_project` wraps that in a diff, sync, diff sequence and refuses early when
-the two profiles already hold the same project:
+`deploy_project` wraps that in a diff, sync, diff sequence. The second diff is a
+verification: if the project still has added or changed resources on `profile_b`,
+the result is `verification_failed` rather than a success. `deploy_project` also
+refuses early when the two profiles already hold the same project:
 
 ```json
 {"ok": false, "steps": [{"tool": "project_diff", "ok": true, "code": null}],
@@ -81,17 +85,23 @@ the two profiles already hold the same project:
 appear at the tag root, so start from one:
 
 ```json
-{"path": "[default]Line1", "max_depth": 3, "max_tags": 500}
+{"path": "[default]Line1", "max_depth": 3, "max_tags": 500, "max_browses": 50}
 ```
 
 The result reports the root, how many browse calls it made, the tag values, and
-whether it stopped at `max_tags`:
+whether anything was left out:
 
 ```json
 {"ok": true, "root": "[default]Line1", "browsed": 2, "truncated": false,
+ "browse_budget_exhausted": false,
  "tags": [{"path": "[default]Line1/Speed", "value": 42, "quality": "Good",
            "timestamp": "2026-09-20T00:00:00Z"}]}
 ```
+
+`truncated` is true only when something was actually omitted: atomic tags past
+`max_tags`, or folders never visited because `max_depth` or `max_browses` ran out.
+`browse_budget_exhausted` is true only in that last case, and raising
+`max_browses` is the fix.
 
 `tags_browse` and `tags_read` need ign's WebDev routes deployed on the gateway. If
 they are not, that step fails and `tag_snapshot` returns ign's error for it.

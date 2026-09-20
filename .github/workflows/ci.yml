@@ -1,4 +1,6 @@
 name: CI
+permissions:
+  contents: read
 on:
   push:
     branches: [main]
@@ -11,6 +13,8 @@ jobs:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: ${{ matrix.python-version }}

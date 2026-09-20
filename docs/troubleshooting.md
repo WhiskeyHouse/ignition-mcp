@@ -57,6 +57,23 @@ Check ign directly with `ign --profile uat status`. If that works, restart
 `ign-mcp`. The error message carries the underlying exception type, which is worth
 reading before restarting anything.
 
+A call you sent with `confirm: true` is never retried. If the child dies during
+one, the result says the operation may have executed and the hint tells you to
+inspect gateway or rig state before sending it again. The session itself is
+rebuilt, so the next call works normally.
+
+This code also covers a reply that is not a well-formed ign envelope. The message
+then reads `ign returned a malformed envelope` and quotes what came back, which
+usually means the ign on `IGN_BIN` is not the version this server expects.
+
+## `protocol_error`
+
+ign answered with a JSON-RPC error that is not about the arguments, for example an
+unknown method. The message is ign's own; there is no hint and the child is not
+restarted, because it is answering fine. Check that `IGN_BIN` points at an ign new
+enough to know the verb you called, and compare `ign --version` against the
+requirement in [Installation](installation.md).
+
 ## `invalid_arguments`
 
 ign rejected the arguments. The message carries ign's own text and the hint says to
@@ -83,6 +100,18 @@ result has `step: null` and no ign call was made at all.
 removed resources, so it refused rather than running a destructive sync that would
 do nothing. The result's `summary` shows the counts it saw. If you expected a
 difference, check that `profile_a`, `profile_b`, and `project` name what you meant.
+
+## `verification_failed`
+
+`deploy_project` ran the sync, diffed the two profiles again, and the project still
+has added or changed resources on `profile_b`. The sync did not land. The message
+carries both counts and the result carries `before`, `sync`, and `after`, so compare
+the two summaries. The usual causes are a resource the gateway rejected and a
+project that changed on `profile_a` while the sync ran.
+
+Resources that exist only on `profile_b` are a different matter: `project_sync` does
+not remove them unless `delete: true`. That case succeeds and reports the count as
+`pending_removals` instead.
 
 ## Seeing ign's own diagnostics
 

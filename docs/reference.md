@@ -41,15 +41,15 @@ Takes `confirm`. `rig_fresh` does not change anything until it is `true`.
 ### `tag_snapshot`
 
 ```python
-tag_snapshot(path: str, max_depth: int = 3, max_tags: int = 500)
+tag_snapshot(path: str, max_depth: int = 3, max_tags: int = 500, max_browses: int = 50)
 ```
 
-Browse under `path` (recursive, depth-limited) and read every atomic tag found, in one call. Recursion happens in Python: ign's tags_browse is not recursive.
+Browse under `path` (recursive, depth-limited) and read every atomic tag found, in one call. Recursion happens in Python: ign's tags_browse is not recursive, so `max_browses` caps how many tags_browse calls one snapshot may spend.
 
 ### `find_alarms`
 
 ```python
-find_alarms(min_priority: str = 'Diagnostic', path_contains: str | None = None)
+find_alarms(min_priority: Literal['Diagnostic', 'Low', 'Medium', 'High', 'Critical'] = 'Diagnostic', path_contains: str | None = None)
 ```
 
 Active alarms filtered by minimum priority (Diagnostic|Low|Medium|High|Critical) and an optional source-path substring. Alarms whose priority is blank or unrecognised are kept only at the default `Diagnostic` floor.
@@ -212,7 +212,9 @@ envelope), and the call is reported to the client as an error:
 {"ok": false, "steps": ["..."], "step": "project_sync", "error": {"ok": false, "profile": "uat", "error": {"code": "...", "message": "...", "endpoint": null, "hint": null}}}
 ```
 
-A composite that refuses before calling ign uses the same shape with `step: null`
-and a synthesized error code: `confirmation_required` from `rig_fresh` called
-without `confirm: true`, and `nothing_to_promote` from `deploy_project` when the two
-profiles already match.
+A composite that refuses rather than forwarding an ign failure uses the same shape
+with `step: null` and a synthesized error code: `confirmation_required` from
+`rig_fresh` called without `confirm: true`, `nothing_to_promote` from
+`deploy_project` when the two profiles already match, and `verification_failed`
+from `deploy_project` when the diff taken after the sync still shows added or
+changed resources.
