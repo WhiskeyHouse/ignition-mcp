@@ -3,7 +3,7 @@
 A local **Streamable HTTP** front for [`ign mcp serve`](https://github.com/WhiskeyHouse/ignition-cli),
 plus composite workflow tools, `ign://` resources, and runbook prompts.
 
-`ign` is the source of truth: every ign verb is proxied unchanged (the full ign tool catalog, 87 tools in ign 1.2.0),
+`ign` is the source of truth: every ign verb is proxied unchanged (the full ign tool catalog, 91 tools in ign 1.2.0),
 credentials and profiles are ign's, and destructive verbs still require `confirm: true`.
 This server never talks to a gateway itself.
 
