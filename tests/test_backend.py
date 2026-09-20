@@ -22,3 +22,18 @@ async def test_restart_once_after_crash(settings, scenario):
         assert env["ok"] is True
     finally:
         await b.stop()
+
+
+async def test_concurrent_calls_survive_single_crash(settings, scenario):
+    import asyncio
+
+    from ignition_mcp.ign import IgnBackend
+
+    scenario("crash_once")
+    b = IgnBackend(settings)
+    await b.start()
+    try:
+        results = await asyncio.gather(b.call("status"), b.call("status"))
+        assert all(env["ok"] is True for env in results)
+    finally:
+        await b.stop()

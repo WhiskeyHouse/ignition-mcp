@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -70,8 +71,19 @@ class IgnBackend:
 
     async def stop(self) -> None:
         if self._client is not None:
-            await self._client.__aexit__(None, None, None)
-            self._client = None
+            old, self._client = self._client, None
+            await old.__aexit__(None, None, None)
+
+    async def _drop_client_for_restart(self) -> None:
+        """Discard the (presumably dead) client without letting teardown raise.
+
+        Used only from the restart path in `call()`, which must never let a
+        transport-teardown exception escape and break the envelope contract.
+        """
+        old, self._client = self._client, None
+        if old is not None:
+            with contextlib.suppress(Exception):
+                await old.__aexit__(None, None, None)
 
     def _new_client(self) -> Client:
         args: list[str] = []
@@ -95,19 +107,24 @@ class IgnBackend:
             raise
         except Exception as first:  # child died mid-session: restart once
             async with self._lock:
-                await self.stop()
+                await self._drop_client_for_restart()
                 try:
                     self._client = self._new_client()
                     await self._client.__aenter__()
                 except Exception as e:  # pragma: no cover - defensive
-                    return _unavailable_envelope(f"ign restart failed: {e} (after: {first})")
+                    return _unavailable_envelope(
+                        f"ign restart failed: {type(e).__name__}: {e} "
+                        f"(after: {type(first).__name__}: {first})"
+                    )
             try:
                 return await self._call_once(name, args or {})
             except Exception as second:
-                return _unavailable_envelope(f"ign unavailable: {second}")
+                return _unavailable_envelope(f"ign unavailable: {type(second).__name__}: {second}")
 
     async def _call_once(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
-        result = await self.client.call_tool(name, args, raise_on_error=False)
+        async with self._lock:
+            client = self.client
+        result = await client.call_tool(name, args, raise_on_error=False)
         text = result.content[0].text if result.content else ""
         try:
             return json.loads(text)
