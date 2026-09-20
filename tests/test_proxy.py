@@ -1,4 +1,4 @@
-from conftest import envelope_of
+from conftest import client_with_scenario, envelope_of
 
 
 async def test_catalog_passes_through(client):
@@ -28,3 +28,14 @@ async def test_guarded_refusal_passes_through(client):
     assert env["ok"] is False
     assert env["error"]["code"] == "confirmation_required"
     assert "confirm: true" in env["error"]["message"]
+
+
+async def test_proxied_tool_recovers_after_crash(settings, scenario):
+    """Proxied tools bypass IgnBackend.call(), so their only crash recovery is
+    the rebuild inside the `acquire` client factory."""
+    async with client_with_scenario(settings, scenario, "crash_once") as c:
+        await c.call_tool("status", {}, raise_on_error=False)  # may fail: child dies here
+        second = envelope_of(await c.call_tool("status", {}, raise_on_error=False))
+        third = envelope_of(await c.call_tool("status", {}, raise_on_error=False))
+    assert second["ok"] is True
+    assert third["ok"] is True

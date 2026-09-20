@@ -26,7 +26,7 @@ INSTRUCTIONS = (
 def build_server(settings: Settings, backend: IgnBackend) -> FastMCP:
     mcp = FastMCP(name="ignition-mcp", version=__version__, instructions=INSTRUCTIONS)
 
-    proxy = FastMCPProxy(client_factory=lambda: backend.client, name="ign")
+    proxy = FastMCPProxy(client_factory=backend.acquire, name="ign")
     mcp.mount(proxy)
 
     register_workflows(mcp, backend)

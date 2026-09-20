@@ -16,6 +16,8 @@ from fastmcp.client.transports import StdioTransport
 from ignition_mcp.config import Settings
 
 _VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+VERSION_TIMEOUT = 10.0
+PING_TIMEOUT = 5.0
 
 
 class IgnUnavailable(RuntimeError):
@@ -42,6 +44,8 @@ class IgnBackend:
         self._settings = settings
         self._client: Client | None = None
         self._lock = asyncio.Lock()
+        self._path: str | None = None
+        self._gen = 0
 
     # -- lifecycle -----------------------------------------------------
 
@@ -57,7 +61,16 @@ class IgnBackend:
         proc = await asyncio.create_subprocess_exec(
             path, "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        out, _ = await proc.communicate()
+        try:
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=VERSION_TIMEOUT)
+        except TimeoutError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            raise IgnUnavailable(
+                f"ign --version timed out after {VERSION_TIMEOUT:g}s (IGN_BIN={path})"
+            ) from None
+        if proc.returncode != 0:
+            raise IgnUnavailable(f"ign --version exited {proc.returncode} (IGN_BIN={path})")
         found = parse_version(out.decode())
         minimum = parse_version(self._settings.min_ign_version)
         if found < minimum:
@@ -68,6 +81,7 @@ class IgnBackend:
         self._path = path
         self._client = self._new_client()
         await self._client.__aenter__()
+        self._gen += 1
 
     async def stop(self) -> None:
         if self._client is not None:
@@ -85,6 +99,15 @@ class IgnBackend:
             with contextlib.suppress(Exception):
                 await old.__aexit__(None, None, None)
 
+    async def _rebuild_locked(self) -> None:
+        """Replace the client with a fresh subprocess session. Caller holds `_lock`."""
+        if self._path is None:
+            raise IgnUnavailable("backend not started")
+        await self._drop_client_for_restart()
+        self._client = self._new_client()
+        await self._client.__aenter__()
+        self._gen += 1
+
     def _new_client(self) -> Client:
         args: list[str] = []
         if self._settings.profile:
@@ -98,24 +121,52 @@ class IgnBackend:
             raise IgnUnavailable("backend not started")
         return self._client
 
+    async def _is_alive(self) -> bool:
+        """Is the ign child still answering? Caller holds `_lock`.
+
+        `Client.is_connected()` only reports that a session object exists; it stays
+        True after the subprocess dies while the session context is still held. A
+        ping is the cheapest call that actually reaches the child, so it is the
+        liveness signal.
+        """
+        if self._client is None or not self._client.is_connected():
+            return False
+        try:
+            await asyncio.wait_for(self._client.ping(), timeout=PING_TIMEOUT)
+        except Exception:
+            return False
+        return True
+
+    async def acquire(self) -> Client:
+        """Return a live client, rebuilding the ign session if the child has died.
+
+        This is the proxy's `client_factory`: proxied tools go straight to the
+        transport and never pass through `call()`, so this is their only crash
+        recovery.
+        """
+        async with self._lock:
+            if not await self._is_alive():
+                await self._rebuild_locked()
+            return self.client
+
     # -- calls ---------------------------------------------------------
 
     async def call(self, name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+        gen = self._gen
         try:
             return await self._call_once(name, args or {})
         except IgnUnavailable:
             raise
         except Exception as first:  # child died mid-session: restart once
             async with self._lock:
-                await self._drop_client_for_restart()
-                try:
-                    self._client = self._new_client()
-                    await self._client.__aenter__()
-                except Exception as e:  # pragma: no cover - defensive
-                    return _unavailable_envelope(
-                        f"ign restart failed: {type(e).__name__}: {e} "
-                        f"(after: {type(first).__name__}: {first})"
-                    )
+                if self._gen == gen:  # nobody else has rebuilt this session yet
+                    try:
+                        await self._rebuild_locked()
+                    except Exception as e:  # pragma: no cover - defensive
+                        return _unavailable_envelope(
+                            f"ign restart failed: {type(e).__name__}: {e} "
+                            f"(after: {type(first).__name__}: {first})"
+                        )
             try:
                 return await self._call_once(name, args or {})
             except Exception as second:
@@ -125,7 +176,15 @@ class IgnBackend:
         async with self._lock:
             client = self.client
         result = await client.call_tool(name, args, raise_on_error=False)
-        text = result.content[0].text if result.content else ""
+        if result.content:
+            text = getattr(result.content[0], "text", None)
+            if text is None:
+                return _unavailable_envelope(
+                    "ign returned a non-envelope payload: "
+                    f"{type(result.content[0]).__name__} block carries no text"
+                )
+        else:
+            text = ""
         try:
             return json.loads(text)
         except json.JSONDecodeError:

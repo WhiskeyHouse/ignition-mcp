@@ -2,7 +2,8 @@
 """A stand-in for `ign` that speaks enough of `ign mcp serve` for tests.
 
 Protocol: newline-delimited JSON-RPC 2.0 on stdio, exactly like ign.
-Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | dirty | crash_once | identical.
+Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | dirty | crash_once |
+identical | module_faulted | garbage_shapes | garbage_text.
 """
 
 import json
@@ -74,12 +75,26 @@ def envelope(name, args):
     if name == "connections":
         return ok(
             {
-                "databases": [{"name": "db", "status": "Valid"}],
+                "database": [
+                    {"name": "db", "enabled": True, "healthchecks": [], "extra": {}},
+                ],
                 "opc": [],
             }
         )
     if name == "modules":
-        return ok([{"name": "Perspective", "state": "RUNNING"}])
+        state = "FAULTED" if SCENARIO == "module_faulted" else "ACTIVE"
+        return ok(
+            {
+                "items": [
+                    {
+                        "id": "com.inductiveautomation.perspective",
+                        "name": "Perspective",
+                        "state": state,
+                    }
+                ],
+                "quarantined": False,
+            }
+        )
     if name == "doctor":
         return ok({"checks": [{"name": "disk", "ok": True}], "healthy": True})
     if name == "workspace_status":
@@ -123,6 +138,8 @@ def envelope(name, args):
     if name == "rig_status":
         return ok({"containers": [{"name": "gw", "state": "running"}]})
     if name == "tags_browse":
+        if SCENARIO == "garbage_shapes":
+            return ok("not-a-dict")
         path = args.get("path")
         by_path = {
             "[default]Line1": [
@@ -201,8 +218,15 @@ def envelope(name, args):
                         "priority": "Low",
                         "name": "Warm",
                     },
+                    {
+                        "event_id": "3",
+                        "source": "[default]Line3/Flow",
+                        "state": "Active",
+                        "priority": "",
+                        "name": "NoPriority",
+                    },
                 ],
-                "count": 2,
+                "count": 3,
             }
         )
     if name == "profile_list":
@@ -220,16 +244,36 @@ def envelope(name, args):
     return fail("unknown_tool", f"no such tool {name}")
 
 
+STR = {"type": "string"}
+BOOL = {"type": "boolean"}
+STR_LIST = {"type": "array", "items": {"type": "string"}}
+
+# The properties each ign verb really advertises, so the proxied schemas the tests
+# assert against match what `ign mcp serve` publishes.
+PROPERTIES = {
+    "project_diff": {"profile_a": STR, "profile_b": STR, "project": STR},
+    "project_sync": {
+        "profile_a": STR,
+        "profile_b": STR,
+        "project": STR,
+        "all-changed": BOOL,
+        "delete": BOOL,
+        "resource": STR,
+    },
+    "tags_browse": {"path": STR, "filter": STR},
+    "tags_read": {"paths": STR_LIST},
+    "tags_alarms_active": {"priority": STR, "source": STR, "state": STR},
+    "workspace_status": {"path": STR},
+    "logs": {"limit": {"type": "string"}},
+}
+
+
 def catalog():
     tools = []
     for name in TOOLS:
-        props = {}
+        props = dict(PROPERTIES.get(name, {}))
         if name in GUARDED:
-            props["confirm"] = {"type": "boolean"}
-        if name == "tags_read":
-            props["paths"] = {"type": "array", "items": {"type": "string"}}
-        if name == "logs":
-            props["limit"] = {"type": "string"}
+            props["confirm"] = BOOL
         tools.append(
             {
                 "name": name,
@@ -266,11 +310,15 @@ def serve():
             ):
                 open(os.environ["FAKE_IGN_CRASH_MARK"], "w").close()
                 os._exit(3)
-            env = envelope(msg["params"]["name"], msg["params"].get("arguments") or {})
-            out = {
-                "content": [{"type": "text", "text": json.dumps(env)}],
-                "isError": not env["ok"],
-            }
+            called = msg["params"]["name"]
+            if SCENARIO == "garbage_text" and called == "status":
+                out = {"content": [{"type": "text", "text": "not json"}], "isError": False}
+            else:
+                env = envelope(called, msg["params"].get("arguments") or {})
+                out = {
+                    "content": [{"type": "text", "text": json.dumps(env)}],
+                    "isError": not env["ok"],
+                }
         elif method == "ping":
             out = {}
         else:

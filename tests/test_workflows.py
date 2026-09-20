@@ -1,31 +1,4 @@
-from contextlib import asynccontextmanager
-
-from conftest import envelope_of
-from fastmcp import Client
-
-from ignition_mcp.ign import IgnBackend
-from ignition_mcp.server import build_server
-
-
-@asynccontextmanager
-async def client_with_scenario(settings, scenario, name: str):
-    """Build a fresh backend+client with `name` already baked into the fake
-    ign subprocess's environment. The shared `client`/`backend` fixtures spawn
-    the fake ign subprocess up front with the default `healthy` scenario, so
-    calling `scenario(...)` inside a test body that only depends on those
-    fixtures is too late: env vars are inherited at subprocess spawn, not
-    polled afterward. Tests that need a non-default scenario build their own
-    backend here, after setting the scenario, mirroring tests/test_backend.py.
-    """
-    scenario(name)
-    backend = IgnBackend(settings)
-    await backend.start()
-    try:
-        server = build_server(settings, backend)
-        async with Client(server) as c:
-            yield c
-    finally:
-        await backend.stop()
+from conftest import client_with_scenario, envelope_of
 
 
 async def test_diagnose_gateway_healthy(client):
@@ -114,10 +87,28 @@ async def test_tag_snapshot(client):
 
 
 async def test_find_alarms_filters(client):
+    out = envelope_of(await client.call_tool("find_alarms", {}))
+    assert [a["name"] for a in out["alarms"]] == ["OverSpeed", "Warm", "NoPriority"]
     out = envelope_of(await client.call_tool("find_alarms", {"min_priority": "High"}))
     assert [a["name"] for a in out["alarms"]] == ["OverSpeed"]
     out = envelope_of(await client.call_tool("find_alarms", {"path_contains": "Line2"}))
     assert [a["name"] for a in out["alarms"]] == ["Warm"]
+
+
+async def test_diagnose_gateway_degraded_on_faulted_module(settings, scenario):
+    async with client_with_scenario(settings, scenario, "module_faulted") as c:
+        out = envelope_of(await c.call_tool("diagnose_gateway", {}))
+    assert out["ok"] is True
+    assert out["verdict"] == "degraded"
+
+
+async def test_composite_never_raises(settings, scenario):
+    async with client_with_scenario(settings, scenario, "garbage_shapes") as c:
+        result = await c.call_tool("tag_snapshot", {"path": "[default]Line1"}, raise_on_error=False)
+    out = envelope_of(result)
+    assert out["ok"] is False
+    assert out["step"] is None
+    assert out["error"]["error"]["code"] == "internal_error"
 
 
 async def test_guarded_composites_confirm_not_required(client):

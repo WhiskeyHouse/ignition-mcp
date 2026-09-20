@@ -1,5 +1,6 @@
 import stat
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -53,6 +54,30 @@ async def client(settings, backend):
     server = build_server(settings, backend)
     async with Client(server) as c:
         yield c
+
+
+@asynccontextmanager
+async def client_with_scenario(settings, scenario, name: str):
+    """Build a fresh backend+client with `name` already baked into the fake
+    ign subprocess's environment. The shared `client`/`backend` fixtures spawn
+    the fake ign subprocess up front with the default `healthy` scenario, so
+    calling `scenario(...)` inside a test body that only depends on those
+    fixtures is too late: env vars are inherited at subprocess spawn, not
+    polled afterward. Tests that need a non-default scenario build their own
+    backend here, mirroring tests/test_backend.py.
+    """
+    from ignition_mcp.ign import IgnBackend
+    from ignition_mcp.server import build_server
+
+    scenario(name)
+    backend = IgnBackend(settings)
+    await backend.start()
+    try:
+        server = build_server(settings, backend)
+        async with Client(server) as c:
+            yield c
+    finally:
+        await backend.stop()
 
 
 def envelope_of(result) -> dict:
