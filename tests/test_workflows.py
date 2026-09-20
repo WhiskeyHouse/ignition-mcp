@@ -123,6 +123,6 @@ async def test_find_alarms_filters(client):
 async def test_guarded_composites_confirm_not_required(client):
     tools = {t.name: t for t in await client.list_tools()}
     for name in ("deploy_project", "rig_fresh"):
-        schema = tools[name].inputSchema
+        schema = tools[name].input_schema
         assert "confirm" in schema["properties"]
         assert "confirm" not in schema.get("required", [])

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "test-mcp": {
-      "command": "/Users/pmannion/Documents/whiskeyhouse/ignition-mcp/.venv/bin/python",
-      "args": ["simple_mcp_test.py"],
-      "env": {}
-    }
-  }
-}

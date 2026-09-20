@@ -8,8 +8,8 @@ async def test_catalog_passes_through(client):
 
 async def test_guarded_schema_has_optional_confirm(client):
     tool = next(t for t in await client.list_tools() if t.name == "project_sync")
-    assert "confirm" in tool.inputSchema["properties"]
-    assert "confirm" not in tool.inputSchema.get("required", [])
+    assert "confirm" in tool.input_schema["properties"]
+    assert "confirm" not in tool.input_schema.get("required", [])
 
 
 async def test_call_passes_envelope_through(client):
