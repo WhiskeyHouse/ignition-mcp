@@ -12,12 +12,22 @@ from typing import Any
 
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
+from mcp.shared.exceptions import MCPError
+from mcp_types import CONNECTION_CLOSED, REQUEST_TIMEOUT
 
 from ignition_mcp.config import Settings
 
 _VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 VERSION_TIMEOUT = 10.0
 PING_TIMEOUT = 5.0
+
+# `Client.call_tool` raises `MCPError` (fastmcp's `McpError`) both for a real
+# JSON-RPC error response from a healthy child (e.g. unknown/invalid tool
+# arguments) and for transport-level failures (request timeout, connection
+# closed mid-call). Only the latter two codes mean the child may be dead and
+# should go through `call()`'s restart path; every other `MCPError` code is a
+# protocol-level error that must be reported back to the caller as-is.
+_TRANSPORT_MCP_ERROR_CODES = frozenset({CONNECTION_CLOSED, REQUEST_TIMEOUT})
 
 
 class IgnUnavailable(RuntimeError):
@@ -36,6 +46,19 @@ def _unavailable_envelope(message: str) -> dict[str, Any]:
         "ok": False,
         "profile": None,
         "error": {"code": IgnUnavailable.code, "message": message, "endpoint": None, "hint": None},
+    }
+
+
+def _invalid_arguments_envelope(exc: MCPError) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "profile": None,
+        "error": {
+            "code": "invalid_arguments",
+            "message": f"{type(exc).__name__}: {exc}",
+            "endpoint": None,
+            "hint": "check the tool's inputSchema; ign rejected the arguments",
+        },
     }
 
 
@@ -157,20 +180,31 @@ class IgnBackend:
             return await self._call_once(name, args or {})
         except IgnUnavailable:
             raise
-        except Exception as first:  # child died mid-session: restart once
-            async with self._lock:
-                if self._gen == gen:  # nobody else has rebuilt this session yet
-                    try:
-                        await self._rebuild_locked()
-                    except Exception as e:  # pragma: no cover - defensive
-                        return _unavailable_envelope(
-                            f"ign restart failed: {type(e).__name__}: {e} "
-                            f"(after: {type(first).__name__}: {first})"
-                        )
-            try:
-                return await self._call_once(name, args or {})
-            except Exception as second:
-                return _unavailable_envelope(f"ign unavailable: {type(second).__name__}: {second}")
+        except MCPError as exc:
+            if exc.code not in _TRANSPORT_MCP_ERROR_CODES:
+                # A JSON-RPC error response from a healthy child (bad
+                # arguments, unknown method, ...): report it, don't restart.
+                return _invalid_arguments_envelope(exc)
+            return await self._restart_and_retry(name, args or {}, gen, exc)
+        except Exception as exc:  # child died mid-session: restart once
+            return await self._restart_and_retry(name, args or {}, gen, exc)
+
+    async def _restart_and_retry(
+        self, name: str, args: dict[str, Any], gen: int, first: BaseException
+    ) -> dict[str, Any]:
+        async with self._lock:
+            if self._gen == gen:  # nobody else has rebuilt this session yet
+                try:
+                    await self._rebuild_locked()
+                except Exception as e:  # pragma: no cover - defensive
+                    return _unavailable_envelope(
+                        f"ign restart failed: {type(e).__name__}: {e} "
+                        f"(after: {type(first).__name__}: {first})"
+                    )
+        try:
+            return await self._call_once(name, args)
+        except Exception as second:
+            return _unavailable_envelope(f"ign unavailable: {type(second).__name__}: {second}")
 
     async def _call_once(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         async with self._lock:

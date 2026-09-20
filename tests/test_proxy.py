@@ -30,6 +30,14 @@ async def test_guarded_refusal_passes_through(client):
     assert "confirm: true" in env["error"]["message"]
 
 
+async def test_proxied_unknown_argument_is_error_not_crash(client):
+    result = await client.call_tool("rig_down", {"confirm": True}, raise_on_error=False)
+    assert result.is_error is True
+
+    status = envelope_of(await client.call_tool("status", {}))
+    assert status["ok"] is True
+
+
 async def test_proxied_tool_recovers_after_crash(settings, scenario):
     """Proxied tools bypass IgnBackend.call(), so their only crash recovery is
     the rebuild inside the `acquire` client factory."""

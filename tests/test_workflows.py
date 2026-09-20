@@ -69,7 +69,10 @@ async def test_deploy_project_confirm_path(client):
 
 async def test_rig_fresh_requires_confirm(client):
     out = envelope_of(await client.call_tool("rig_fresh", {}, raise_on_error=False))
-    assert out["ok"] is False and out["step"] == "rig_down"
+    assert out["ok"] is False
+    assert out["step"] is None
+    assert out["error"]["error"]["code"] == "confirmation_required"
+    assert out["steps"] == []
     out = envelope_of(await client.call_tool("rig_fresh", {"confirm": True}))
     assert out["ok"] is True
     assert [s["tool"] for s in out["steps"]] == ["rig_down", "rig_up", "wait_gateway", "status"]

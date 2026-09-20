@@ -17,7 +17,7 @@ for i, a in enumerate(sys.argv):
     if a == "--profile" and i + 1 < len(sys.argv):
         PROFILE = sys.argv[i + 1]
 
-GUARDED = {"project_sync", "rig_down", "restart"}
+GUARDED = {"project_sync", "restart"}
 TOOLS = [
     "status",
     "license_status",
@@ -265,15 +265,26 @@ PROPERTIES = {
     "tags_alarms_active": {"priority": STR, "source": STR, "state": STR},
     "workspace_status": {"path": STR},
     "logs": {"limit": {"type": "string"}},
+    # rig_down genuinely has no properties on the real `ign mcp serve` (it is
+    # not a guarded verb, unlike rig_reset/rig_restore/rig_trial_reset); an
+    # explicit empty entry still opts it into the unknown-argument check below.
+    "rig_down": {},
 }
+
+
+def _expected_properties(name):
+    """The full property set `name` advertises: its PROPERTIES entry, plus a
+    dynamic `confirm` for guarded verbs (mirrors what real `ign` publishes)."""
+    props = dict(PROPERTIES.get(name, {}))
+    if name in GUARDED:
+        props["confirm"] = BOOL
+    return props
 
 
 def catalog():
     tools = []
     for name in TOOLS:
-        props = dict(PROPERTIES.get(name, {}))
-        if name in GUARDED:
-            props["confirm"] = BOOL
+        props = _expected_properties(name)
         tools.append(
             {
                 "name": name,
@@ -311,10 +322,37 @@ def serve():
                 open(os.environ["FAKE_IGN_CRASH_MARK"], "w").close()
                 os._exit(3)
             called = msg["params"]["name"]
+            arguments = msg["params"].get("arguments") or {}
+            extra_args = None
+            if called in PROPERTIES:
+                extra_args = set(arguments) - set(_expected_properties(called))
+            if extra_args:
+                # A real JSON-RPC error response (not a tool-level isError):
+                # this is what `ign` sends back for arguments a verb doesn't
+                # accept, e.g. `confirm` on the unguarded `rig_down`.
+                if mid is not None:
+                    sys.stdout.write(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": mid,
+                                "error": {
+                                    "code": -32602,
+                                    "message": (
+                                        f"Unknown argument(s) for {called}: "
+                                        f"{', '.join(sorted(extra_args))}"
+                                    ),
+                                },
+                            }
+                        )
+                        + "\n"
+                    )
+                    sys.stdout.flush()
+                continue
             if SCENARIO == "garbage_text" and called == "status":
                 out = {"content": [{"type": "text", "text": "not json"}], "isError": False}
             else:
-                env = envelope(called, msg["params"].get("arguments") or {})
+                env = envelope(called, arguments)
                 out = {
                     "content": [{"type": "text", "text": json.dumps(env)}],
                     "isError": not env["ok"],

@@ -162,10 +162,20 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
     @mcp.tool
     async def rig_fresh(confirm: bool = False) -> ToolResult:
         """Tear down and bring up the active rig, then wait for the gateway:
-        rig_down, rig_up, wait_gateway, status. Requires confirm: true."""
+        rig_down, rig_up, wait_gateway, status. Requires confirm: true.
+
+        ign's `rig_down` verb is not itself guarded (unlike rig_reset,
+        rig_restore, and rig_trial_reset), so this composite enforces its own
+        confirmation gate before making any ign call, rather than forwarding
+        `confirm` to rig_down."""
         r = Runner(backend)
+        if not confirm:
+            return r.refused(
+                "confirmation_required",
+                "rig_fresh is destructive (rig_down then rig_up); rerun with confirm: true",
+            )
         try:
-            await r.run("rig_down", {"confirm": confirm})
+            await r.run("rig_down")
             await r.run("rig_up")
             await r.run("wait_gateway")
             status = await r.run("status")

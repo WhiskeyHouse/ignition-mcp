@@ -39,6 +39,18 @@ async def test_concurrent_calls_survive_single_crash(settings, scenario):
         await b.stop()
 
 
+async def test_unknown_argument_returns_invalid_arguments_without_restart(backend):
+    gen_before = backend._gen
+    env = await backend.call("rig_down", {"confirm": True})
+    assert env["ok"] is False
+    assert env["error"]["code"] == "invalid_arguments"
+    assert "confirm" in env["error"]["message"]
+    assert backend._gen == gen_before
+
+    env = await backend.call("status")
+    assert env["ok"] is True
+
+
 async def test_non_json_payload_returns_envelope(settings, scenario):
     from ignition_mcp.ign import IgnBackend
 
