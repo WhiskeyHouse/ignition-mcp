@@ -1,5 +1,7 @@
 # Quickstart
 
+[Watch the recorded walkthroughs](demos.md) to see the tools in use.
+
 A first session against a running server. Start it with
 `uv run ign-mcp --profile uat` and connect a client as shown in
 [Installation](installation.md).

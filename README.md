@@ -10,6 +10,16 @@ This server never talks to a gateway itself.
 > **Local development only.** There is no client authentication. Keep the default
 > loopback bind (`127.0.0.1`). Do not expose it on a network.
 
+## Watch it in use
+
+### Ignition MCP + Agent
+
+An agent inspects gateway health, reads batch conditions and traceability, and discusses hold readiness through Ignition MCP.
+
+[![Ignition MCP + Agent recorded terminal walkthrough](website/static/demos/pi.gif?raw=true)](https://whiskeyhouse.github.io/ignition-mcp/docs/demos/)
+
+[Open the recordings with playback controls and written summaries](https://whiskeyhouse.github.io/ignition-mcp/docs/demos/). Recorded against a fictional batch process; playback runs at 1.2×.
+
 ## Requirements
 
 - `ign` >= 1.2.0 on PATH (or `IGN_BIN=/path/to/ign`) with a configured profile
