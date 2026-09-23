@@ -218,6 +218,7 @@ async def test_push_workspace_without_confirm_is_refused_by_ign(client):
     assert out["step"] == "workspace_push"
     assert out["error"]["error"]["code"] == "confirmation_required"
     assert [s["tool"] for s in out["steps"]] == ["workspace_status", "workspace_push"]
+    assert "push" not in out and "pushed" not in out
 
 
 async def test_push_workspace_confirm_path(client):
@@ -325,3 +326,19 @@ async def test_push_workspace_fails_verification_when_added_member_still_local(s
     assert out["error"]["error"]["code"] == "verification_failed"
     assert "views/Main.json" in out["error"]["error"]["message"]
     assert out["after"]["rows"] == [{"path": "views/Main.json", "kind": {"added": {"local": True}}}]
+
+
+async def test_push_workspace_keeps_push_payload_when_verification_status_fails(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_status_fails_after_push") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["step"] == "workspace_status"
+    assert out["error"]["error"]["code"] == "gateway_error"
+    assert len(out["steps"]) == 3
+    assert out["push"]["wrote"] == ["views/Main.json"]
+    assert out["pushed"] == ["views/Main.json"]
+    assert "may already reflect these changes" in out["note"]

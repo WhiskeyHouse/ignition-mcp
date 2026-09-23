@@ -6,7 +6,7 @@ Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | crash_once |
 identical | module_faulted | garbage_shapes | garbage_text | garbage_json | doctor_fail |
 sync_incomplete | pending_removals | method_missing | ws_clean | ws_conflict |
 ws_push_incomplete | ws_delete | ws_delete_incomplete |
-ws_added_incomplete.
+ws_added_incomplete | ws_status_fails_after_push.
 """
 
 import json
@@ -126,6 +126,8 @@ def envelope(name, args):
     if name == "workspace_status":
         # Real shape: one row per member, `kind` is a string (clean | local_edit |
         # gateway_drift | conflict) or {"added"|"deleted": {"local": bool}}.
+        if SCENARIO == "ws_status_fails_after_push" and PUSHED:
+            return fail("gateway_error", "project export failed")
         if SCENARIO == "ws_clean":
             kind = "clean"
         elif SCENARIO == "ws_conflict" or (PUSHED and SCENARIO != "ws_push_incomplete"):

@@ -19,6 +19,10 @@ BASELINE_NOTE = (
     "project. Run push_workspace again only after a fresh checkout."
 )
 LOCAL_DELETE = {"deleted": {"local": True}}
+PUSH_UNVERIFIED_NOTE = (
+    "workspace_push completed before the verification status failed; the gateway may "
+    "already reflect these changes"
+)
 
 
 def _still_local(kind: Any) -> bool:
@@ -255,6 +259,7 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
         result says so in `note`. Local deletions are pushed only with delete:
         true."""
         r = Runner(backend)
+        push: Any = None
         try:
             before = await r.run("workspace_status", {"path": path})
             rows = before.get("rows", [])
@@ -308,7 +313,19 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
                 note=BASELINE_NOTE,
             )
         except StepFailed as e:
-            return r.failed(e)
+            # A failure after workspace_push succeeded must still say what was pushed.
+            return r.failed(
+                e,
+                **(
+                    {
+                        "push": push,
+                        "pushed": list(push.get("wrote", [])) + list(push.get("deleted", [])),
+                        "note": PUSH_UNVERIFIED_NOTE,
+                    }
+                    if push is not None
+                    else {}
+                ),
+            )
         except Exception as exc:
             return r.internal_error(exc)
 

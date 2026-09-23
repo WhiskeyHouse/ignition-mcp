@@ -35,6 +35,9 @@ async def test_push_local_edits_names_tools(client):
         "confirm: true",
         "push_workspace",
         "ign workspace checkout",
+        "get explicit approval before calling anything with confirm: true",
+        "delete: true ONLY when the user approved pushing the local deletions",
+        '{"deleted": {"local": true}}',
     ):
         assert needle in text
     assert "ws/Demo" in text
