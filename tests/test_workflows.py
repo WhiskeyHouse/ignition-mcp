@@ -312,3 +312,16 @@ async def test_push_workspace_verifies_deletions(settings, scenario):
         )
     assert out["ok"] is True
     assert out["pushed"] == ["views/Main.json", "views/Old.json"]
+
+
+async def test_push_workspace_fails_verification_when_added_member_still_local(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_added_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert "views/Main.json" in out["error"]["error"]["message"]
+    assert out["after"]["rows"] == [{"path": "views/Main.json", "kind": {"added": {"local": True}}}]

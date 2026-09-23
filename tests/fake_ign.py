@@ -5,7 +5,8 @@ Protocol: newline-delimited JSON-RPC 2.0 on stdio, exactly like ign.
 Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | crash_once |
 identical | module_faulted | garbage_shapes | garbage_text | garbage_json | doctor_fail |
 sync_incomplete | pending_removals | method_missing | ws_clean | ws_conflict |
-ws_push_incomplete | ws_delete | ws_delete_incomplete.
+ws_push_incomplete | ws_delete | ws_delete_incomplete |
+ws_added_incomplete.
 """
 
 import json
@@ -131,6 +132,8 @@ def envelope(name, args):
             kind = "conflict"
         else:
             kind = "local_edit"
+        if SCENARIO == "ws_added_incomplete" and PUSHED:
+            kind = {"added": {"local": True}}
         rows = [{"path": "views/Main.json", "kind": kind}]
         if SCENARIO == "ws_delete_incomplete" or (SCENARIO == "ws_delete" and not PUSHED):
             rows.append({"path": "views/Old.json", "kind": {"deleted": {"local": True}}})

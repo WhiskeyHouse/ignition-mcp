@@ -21,6 +21,21 @@ BASELINE_NOTE = (
 LOCAL_DELETE = {"deleted": {"local": True}}
 
 
+def _still_local(kind: Any) -> bool:
+    """True when a workspace_status row kind still describes an unpushed local change:
+    `local_edit`, or `{"added": {"local": true}}`.
+
+    The `added` case is defensive hardening. In ign 1.3.0 it is unreachable: push
+    writes only `local_edit` members and `Added.local` is always false. It keeps the
+    check correct if a later ign starts pushing locally added members."""
+    if kind == "local_edit":
+        return True
+    if isinstance(kind, dict):
+        added = kind.get("added")
+        return isinstance(added, dict) and added.get("local") is True
+    return False
+
+
 def _rank(priority: str) -> int:
     """Index of `priority` in PRIORITY_ORDER, or -1 when unknown or blank."""
     try:
@@ -274,7 +289,7 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
                 for row in after.get("rows", [])
                 if isinstance(row, dict)
             }
-            not_landed = [p for p in wrote if kinds.get(p) == "local_edit"]
+            not_landed = [p for p in wrote if _still_local(kinds.get(p))]
             not_landed += [p for p in deleted if kinds.get(p) == LOCAL_DELETE]
             if not_landed:
                 return r.refused(
