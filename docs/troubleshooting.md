@@ -102,7 +102,43 @@ removed resources, so it refused rather than running a destructive sync that wou
 do nothing. The result's `summary` shows the counts it saw. If you expected a
 difference, check that `profile_a`, `profile_b`, and `project` name what you meant.
 
+## `workspace_conflict`
+
+`push_workspace` read `workspace_status` first and found members whose kind is
+`conflict`: they changed both locally and on the gateway since the checkout. ign
+refuses to push a conflict even with `confirm: true`, so the composite refuses
+before pushing anything. The result's `conflicts` lists the paths.
+
+Right after a successful push this is expected, not a problem. ign never advances
+the workspace baseline on push, so every member you just pushed now differs from
+the baseline on both sides and reads as `conflict`. Re-run the checkout for the
+project into the same workspace directory, which refreshes the baseline, then push
+again only if you have new edits:
+
+```sh
+ign --profile uat workspace checkout <PROJECT> <WORKSPACE_DIR>
+```
+
+Otherwise reconcile the listed members locally against the gateway, then check
+out again before pushing.
+
+## `nothing_to_push`
+
+`push_workspace` found the workspace `clean`: nothing differs from the gateway, so
+it refused rather than run a push that would write nothing. The result's `status`
+is the `workspace_status` it saw. If you expected edits, check that `path` points
+at the workspace you edited.
+
 ## `verification_failed`
+
+From `deploy_project` and `push_workspace`. Both check their own work after the
+destructive step and report this code when that step did not land.
+
+`push_workspace` pushed, read `workspace_status` again, and a member that
+`workspace_push` reported writing is still `local_edit` (or a member it reported
+deleting is still a local deletion). The message names those members, and the
+result carries `before`, `push`, and `after`. Pushed members that read as
+`conflict` are not a failure: see `workspace_conflict` above.
 
 `deploy_project` ran the sync, diffed the two profiles again, and the project still
 has added or changed resources on `profile_b`. The sync did not land. The message

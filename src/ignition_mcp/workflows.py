@@ -13,6 +13,12 @@ from ignition_mcp.ign import IgnBackend
 PRIORITY_ORDER = ["Diagnostic", "Low", "Medium", "High", "Critical"]
 HEALTHY_MODULE_STATES = frozenset({"ACTIVE", "RUNNING"})
 FAILED_DOCTOR_STATUS = "Fail"
+BASELINE_NOTE = (
+    "ign does not advance the workspace baseline on push; pushed members now read as "
+    "`conflict` in workspace_status until you re-run `ign workspace checkout` for this "
+    "project. Run push_workspace again only after a fresh checkout."
+)
+LOCAL_DELETE = {"deleted": {"local": True}}
 
 
 def _rank(priority: str) -> int:
@@ -226,9 +232,13 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
 
         Conflicts are refused before any push is attempted, even with confirm:
         true, because ign can never confirm them. The second workspace_status is a
-        verification: if the workspace is still not clean and no row is
-        `gateway_drift`, the push did not land and the result is
-        `verification_failed`. Local deletions are pushed only with delete: true."""
+        verification of the pushed members only: a written member still
+        `local_edit`, or a deleted member still a local deletion, means the push
+        did not land and the result is `verification_failed`. ign never advances
+        the workspace baseline on push, so pushed members read as `conflict`
+        afterwards until a fresh `ign workspace checkout`; that is success, and the
+        result says so in `note`. Local deletions are pushed only with delete:
+        true."""
         r = Runner(backend)
         try:
             before = await r.run("workspace_status", {"path": path})
@@ -241,8 +251,10 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
             if conflicts:
                 return r.refused(
                     "workspace_conflict",
-                    f"{len(conflicts)} member(s) changed on both sides; "
-                    "reconcile locally before pushing",
+                    f"{len(conflicts)} member(s) changed on both sides; reconcile locally, "
+                    "then re-run `ign workspace checkout` for this project before pushing. "
+                    "A conflict immediately after a successful push is expected: ign does "
+                    "not advance the workspace baseline on push, so re-checkout first",
                     conflicts=conflicts,
                 )
             if before.get("clean") is True:
@@ -255,25 +267,31 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
                 "workspace_push", {"path": path, "delete": delete, "confirm": confirm}
             )
             after = await r.run("workspace_status", {"path": path})
-            after_rows = after.get("rows", []) if isinstance(after, dict) else []
-            drifted = any(
-                isinstance(row, dict) and row.get("kind") == "gateway_drift" for row in after_rows
-            )
-            if not after.get("clean") and not drifted:
-                pending = [
-                    row.get("path")
-                    for row in after_rows
-                    if isinstance(row, dict) and row.get("kind") != "clean"
-                ]
+            wrote = list(push.get("wrote", []))
+            deleted = list(push.get("deleted", []))
+            kinds = {
+                row.get("path"): row.get("kind")
+                for row in after.get("rows", [])
+                if isinstance(row, dict)
+            }
+            not_landed = [p for p in wrote if kinds.get(p) == "local_edit"]
+            not_landed += [p for p in deleted if kinds.get(p) == LOCAL_DELETE]
+            if not_landed:
                 return r.refused(
                     "verification_failed",
-                    f"workspace at {path} still differs from the gateway after workspace_push "
-                    f"({len(pending)} member(s) not clean)",
+                    f"workspace_push reported {len(not_landed)} member(s) pushed that "
+                    f"workspace_status still shows as local changes: {', '.join(not_landed)}",
                     before=before,
                     push=push,
                     after=after,
                 )
-            return r.ok(before=before, push=push, after=after)
+            return r.ok(
+                before=before,
+                push=push,
+                after=after,
+                pushed=wrote + deleted,
+                note=BASELINE_NOTE,
+            )
         except StepFailed as e:
             return r.failed(e)
         except Exception as exc:

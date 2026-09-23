@@ -230,9 +230,13 @@ async def test_push_workspace_confirm_path(client):
         "workspace_push",
         "workspace_status",
     ]
-    assert out["push"]["wrote"]
+    assert out["push"]["wrote"] == ["views/Main.json"]
+    assert out["pushed"] == ["views/Main.json"]
     assert out["before"]["clean"] is False
-    assert out["after"]["clean"] is True
+    # ign never advances the recorded baseline, so a pushed member reads as conflict.
+    assert out["after"]["clean"] is False
+    assert out["after"]["rows"] == [{"path": "views/Main.json", "kind": "conflict"}]
+    assert "ign workspace checkout" in out["note"]
 
 
 async def test_push_workspace_refuses_conflicts_even_with_confirm(settings, scenario):
@@ -246,6 +250,8 @@ async def test_push_workspace_refuses_conflicts_even_with_confirm(settings, scen
     assert out["step"] is None
     assert out["error"]["error"]["code"] == "workspace_conflict"
     assert out["conflicts"] == ["views/Main.json"]
+    message = out["error"]["error"]["message"]
+    assert "ign workspace checkout" in message and "after a successful push" in message
     assert [s["tool"] for s in out["steps"]] == ["workspace_status"]
 
 
@@ -280,3 +286,29 @@ async def test_push_workspace_fails_verification_when_edits_remain(settings, sce
     assert out["after"]["clean"] is False
     assert out["push"]["wrote"]
     assert out["before"]["rows"]
+
+
+async def test_push_workspace_fails_verification_when_deletion_remains(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_delete_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace",
+                {"path": "ws/Demo", "confirm": True, "delete": True},
+                raise_on_error=False,
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert "views/Old.json" in out["error"]["error"]["message"]
+    assert out["push"]["deleted"] == ["views/Old.json"]
+
+
+async def test_push_workspace_verifies_deletions(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_delete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True, "delete": True}
+            )
+        )
+    assert out["ok"] is True
+    assert out["pushed"] == ["views/Main.json", "views/Old.json"]

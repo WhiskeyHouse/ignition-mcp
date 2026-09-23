@@ -230,4 +230,6 @@ with `step: null` and a synthesized error code: `confirmation_required` from
 `nothing_to_push` from `push_workspace` when a member changed on both sides or the
 workspace already matches the gateway, and `verification_failed` from
 `deploy_project` or `push_workspace` when the check taken after the push still
-shows changes that did not land.
+shows changes that did not land. A successful `push_workspace` also returns
+`pushed` and a `note`: ign does not advance the workspace baseline on push, so the
+pushed members read as `conflict` until `ign workspace checkout` is run again.

@@ -29,6 +29,12 @@ async def test_triage_alarm_names_path(client):
 async def test_push_local_edits_names_tools(client):
     result = await client.get_prompt("push_local_edits", {"path": "ws/Demo"})
     text = result.messages[0].content.text
-    for needle in ("workspace_status", "workspace_push", "confirm: true", "push_workspace"):
+    for needle in (
+        "workspace_status",
+        "workspace_push",
+        "confirm: true",
+        "push_workspace",
+        "ign workspace checkout",
+    ):
         assert needle in text
     assert "ws/Demo" in text
