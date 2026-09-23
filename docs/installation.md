@@ -6,7 +6,7 @@ So `ign` has to work on this machine first.
 
 ## Requirements
 
-- `ign` 1.2.0 or newer on `PATH`, with a configured profile
+- `ign` 1.3.0 or newer on `PATH`, with a configured profile
 - Python 3.11 or newer
 - [`uv`](https://docs.astral.sh/uv/)
 
@@ -36,7 +36,7 @@ uv run ign-mcp --profile uat
 ```
 
 That serves Streamable HTTP on `http://127.0.0.1:8765/mcp`. The startup check runs
-`ign --version`; if `ign` is missing or older than 1.2.0, the process prints a
+`ign --version`; if `ign` is missing or older than 1.3.0, the process prints a
 message to stderr and exits with status 1.
 
 For a client that launches the server as a subprocess, use stdio instead:

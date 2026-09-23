@@ -338,9 +338,11 @@ def result_shapes_section() -> list[str]:
         "A composite that refuses rather than forwarding an ign failure uses the same shape",
         "with `step: null` and a synthesized error code: `confirmation_required` from",
         "`rig_fresh` called without `confirm: true`, `nothing_to_promote` from",
-        "`deploy_project` when the two profiles already match, and `verification_failed`",
-        "from `deploy_project` when the diff taken after the sync still shows added or",
-        "changed resources.",
+        "`deploy_project` when the two profiles already match, `workspace_conflict` and",
+        "`nothing_to_push` from `push_workspace` when a member changed on both sides or the",
+        "workspace already matches the gateway, and `verification_failed` from",
+        "`deploy_project` or `push_workspace` when the check taken after the push still",
+        "shows changes that did not land.",
     ]
 
 

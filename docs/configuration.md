@@ -12,7 +12,7 @@ variable, and the flag wins when both are set. Everything about the gateway itse
 | `profile` | `IGNITION_PROFILE` | `--profile` | — |
 | `host` | `IGN_MCP_HOST` | `--host` | `127.0.0.1` |
 | `port` | `IGN_MCP_PORT` | `--port` | `8765` |
-| `min_ign_version` | — | — | `1.2.0` |
+| `min_ign_version` | — | — | `1.3.0` |
 
 With neither `--profile` nor `IGNITION_PROFILE` set, the server starts
 `ign mcp serve` without a `--profile` argument and ign uses its own active profile.

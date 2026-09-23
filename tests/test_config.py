@@ -9,7 +9,7 @@ def test_defaults(monkeypatch):
     assert s.profile is None
     assert s.host == "127.0.0.1"
     assert s.port == 8765
-    assert s.min_ign_version == "1.2.0"
+    assert s.min_ign_version == "1.3.0"
 
 
 def test_env_overrides(monkeypatch):

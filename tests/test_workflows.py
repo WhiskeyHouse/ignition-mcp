@@ -116,7 +116,7 @@ async def test_composite_never_raises(settings, scenario):
 
 async def test_guarded_composites_confirm_not_required(client):
     tools = {t.name: t for t in await client.list_tools()}
-    for name in ("deploy_project", "rig_fresh"):
+    for name in ("deploy_project", "rig_fresh", "push_workspace"):
         schema = tools[name].input_schema
         assert "confirm" in schema["properties"]
         assert "confirm" not in schema.get("required", [])
@@ -208,3 +208,75 @@ async def test_find_alarms_priority_is_an_enum(client):
         (v.get("enum") for v in prop.get("anyOf", []) if v.get("enum")), None
     )
     assert enum == ["Diagnostic", "Low", "Medium", "High", "Critical"]
+
+
+async def test_push_workspace_without_confirm_is_refused_by_ign(client):
+    out = envelope_of(
+        await client.call_tool("push_workspace", {"path": "ws/Demo"}, raise_on_error=False)
+    )
+    assert out["ok"] is False
+    assert out["step"] == "workspace_push"
+    assert out["error"]["error"]["code"] == "confirmation_required"
+    assert [s["tool"] for s in out["steps"]] == ["workspace_status", "workspace_push"]
+
+
+async def test_push_workspace_confirm_path(client):
+    out = envelope_of(
+        await client.call_tool("push_workspace", {"path": "ws/Demo", "confirm": True})
+    )
+    assert out["ok"] is True
+    assert [s["tool"] for s in out["steps"]] == [
+        "workspace_status",
+        "workspace_push",
+        "workspace_status",
+    ]
+    assert out["push"]["wrote"]
+    assert out["before"]["clean"] is False
+    assert out["after"]["clean"] is True
+
+
+async def test_push_workspace_refuses_conflicts_even_with_confirm(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_conflict") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["step"] is None
+    assert out["error"]["error"]["code"] == "workspace_conflict"
+    assert out["conflicts"] == ["views/Main.json"]
+    assert [s["tool"] for s in out["steps"]] == ["workspace_status"]
+
+
+async def test_push_workspace_refuses_when_clean(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_clean") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "nothing_to_push"
+    assert "ws/Demo" in out["error"]["error"]["message"]
+    assert out["status"]["clean"] is True
+    assert [s["tool"] for s in out["steps"]] == ["workspace_status"]
+
+
+async def test_push_workspace_fails_verification_when_edits_remain(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_push_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert [s["tool"] for s in out["steps"]] == [
+        "workspace_status",
+        "workspace_push",
+        "workspace_status",
+    ]
+    assert out["after"]["clean"] is False
+    assert out["push"]["wrote"]
+    assert out["before"]["rows"]

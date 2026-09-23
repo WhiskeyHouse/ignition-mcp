@@ -49,6 +49,23 @@ def register_prompts(mcp: FastMCP) -> None:
         )
 
     @mcp.prompt
+    def push_local_edits(path: str) -> str:
+        """Push local workspace edits to the gateway safely."""
+        return (
+            f"Push the local edits in the workspace at {path} to its gateway project.\n"
+            f"1. Call workspace_status with path: {path}. If clean is true, stop and say there "
+            "is nothing to push.\n"
+            "2. Review the rows. If any row's kind is conflict, stop: conflicts must be "
+            "reconciled locally and cannot be pushed even with confirm. Report each "
+            "local_edit, added, and deleted row; deletions are pushed only with delete: true.\n"
+            f"3. Call workspace_push with path: {path}, confirm: true.\n"
+            f"4. Call workspace_status with path: {path} again to verify the workspace is now "
+            "clean.\n"
+            f"Shortcut: push_workspace({path}, confirm: true) does all four and refuses with "
+            "workspace_conflict or nothing_to_push before pushing anything."
+        )
+
+    @mcp.prompt
     def triage_alarm(path: str) -> str:
         """Investigate an active alarm on a tag path."""
         return (

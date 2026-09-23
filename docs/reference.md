@@ -38,6 +38,16 @@ Tear down and bring up the active rig, then wait for the gateway: rig_down, rig_
 
 Takes `confirm`. `rig_fresh` does not change anything until it is `true`.
 
+### `push_workspace`
+
+```python
+push_workspace(path: str = '.', confirm: bool = False, delete: bool = False)
+```
+
+Push the local workspace at `path` to its gateway project via ign's workspace_push. Refuses when any member changed on both sides or when the workspace already matches the gateway, and requires confirm: true to actually push (workspace_push is destructive).
+
+Takes `confirm`. `push_workspace` does not change anything until it is `true`.
+
 ### `tag_snapshot`
 
 ```python
@@ -78,6 +88,7 @@ that shortcuts them.
 | `health_check()` | Daily gateway health check runbook. |
 | `bring_up_rig()` | Bring a Docker test rig to a fresh, reachable gateway. |
 | `sync_project(project: str, profile_a: str, profile_b: str)` | Promote a project from one gateway profile to another safely. |
+| `push_local_edits(path: str)` | Push local workspace edits to the gateway safely. |
 | `triage_alarm(path: str)` | Investigate an active alarm on a tag path. |
 
 ## Proxied ign tools
@@ -99,7 +110,7 @@ Destructive verbs carry a `confirm` boolean and refuse with the error code
 `confirmation_required` until it is `true`.
 
 The table below is a snapshot of the 91 tools reported by `ign mcp serve`
-in ign 1.2.0. Another ign version may report a different set; ask your MCP
+in ign 1.3.0. Another ign version may report a different set; ask your MCP
 client to list tools for the authoritative answer.
 
 | Tool | Description |
@@ -215,6 +226,8 @@ envelope), and the call is reported to the client as an error:
 A composite that refuses rather than forwarding an ign failure uses the same shape
 with `step: null` and a synthesized error code: `confirmation_required` from
 `rig_fresh` called without `confirm: true`, `nothing_to_promote` from
-`deploy_project` when the two profiles already match, and `verification_failed`
-from `deploy_project` when the diff taken after the sync still shows added or
-changed resources.
+`deploy_project` when the two profiles already match, `workspace_conflict` and
+`nothing_to_push` from `push_workspace` when a member changed on both sides or the
+workspace already matches the gateway, and `verification_failed` from
+`deploy_project` or `push_workspace` when the check taken after the push still
+shows changes that did not land.

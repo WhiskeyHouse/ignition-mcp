@@ -216,6 +216,70 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
             return r.internal_error(exc)
 
     @mcp.tool
+    async def push_workspace(
+        path: str = ".", confirm: bool = False, delete: bool = False
+    ) -> ToolResult:
+        """Push the local workspace at `path` to its gateway project via ign's
+        workspace_push. Refuses when any member changed on both sides or when the
+        workspace already matches the gateway, and requires confirm: true to
+        actually push (workspace_push is destructive).
+
+        Conflicts are refused before any push is attempted, even with confirm:
+        true, because ign can never confirm them. The second workspace_status is a
+        verification: if the workspace is still not clean and no row is
+        `gateway_drift`, the push did not land and the result is
+        `verification_failed`. Local deletions are pushed only with delete: true."""
+        r = Runner(backend)
+        try:
+            before = await r.run("workspace_status", {"path": path})
+            rows = before.get("rows", [])
+            conflicts = [
+                row.get("path")
+                for row in rows
+                if isinstance(row, dict) and row.get("kind") == "conflict"
+            ]
+            if conflicts:
+                return r.refused(
+                    "workspace_conflict",
+                    f"{len(conflicts)} member(s) changed on both sides; "
+                    "reconcile locally before pushing",
+                    conflicts=conflicts,
+                )
+            if before.get("clean") is True:
+                return r.refused(
+                    "nothing_to_push",
+                    f"workspace at {path} matches the gateway",
+                    status=before,
+                )
+            push = await r.run(
+                "workspace_push", {"path": path, "delete": delete, "confirm": confirm}
+            )
+            after = await r.run("workspace_status", {"path": path})
+            after_rows = after.get("rows", []) if isinstance(after, dict) else []
+            drifted = any(
+                isinstance(row, dict) and row.get("kind") == "gateway_drift" for row in after_rows
+            )
+            if not after.get("clean") and not drifted:
+                pending = [
+                    row.get("path")
+                    for row in after_rows
+                    if isinstance(row, dict) and row.get("kind") != "clean"
+                ]
+                return r.refused(
+                    "verification_failed",
+                    f"workspace at {path} still differs from the gateway after workspace_push "
+                    f"({len(pending)} member(s) not clean)",
+                    before=before,
+                    push=push,
+                    after=after,
+                )
+            return r.ok(before=before, push=push, after=after)
+        except StepFailed as e:
+            return r.failed(e)
+        except Exception as exc:
+            return r.internal_error(exc)
+
+    @mcp.tool
     async def tag_snapshot(
         path: str, max_depth: int = 3, max_tags: int = 500, max_browses: int = 50
     ) -> ToolResult:

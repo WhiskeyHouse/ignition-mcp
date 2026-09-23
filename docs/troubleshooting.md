@@ -14,7 +14,7 @@ line to stderr, prefixed `ign-mcp:`, and exits with status 1.
 
 - `ign binary not found at 'ign'; set IGN_BIN or add ign to PATH` — `ign` is not on
   `PATH`. Set `IGN_BIN` to the full path, or pass `--ign-bin /path/to/ign`.
-- `ign 1.1.0 is too old; need >= 1.2.0` — upgrade ign. The server does not run
+- `ign 1.1.0 is too old; need >= 1.3.0` — upgrade ign. The server does not run
   against older versions.
 - `ign --version timed out after 10s` or `ign --version exited 1` — the binary at
   that path is not a working ign. Run it yourself and see what it says.
@@ -82,10 +82,9 @@ ign rejected the arguments. The message carries ign's own text and the hint says
 check the tool's input schema. Ask your client to show the schema for that tool and
 compare argument names; they are ign's names, not renamed here.
 
-One case looks like a bug and is not. In ign 1.2.0, `rig_down` and `workspace_push`
-are not in ign's guarded set, so they do not accept a `confirm` argument at all.
-Sending `confirm: true` to either one is an unknown argument and fails this way.
-Call them without it. For a guarded teardown and rebuild of a rig, use the
+One case looks like a bug and is not. `rig_down` is not in ign's guarded set, so it
+does not accept a `confirm` argument at all. Sending `confirm: true` to it is an
+unknown argument and fails this way. Call it without it. For a guarded teardown and rebuild of a rig, use the
 `rig_fresh` composite, which gates itself.
 
 ## `confirmation_required`

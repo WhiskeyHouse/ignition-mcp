@@ -21,7 +21,7 @@ def ign_bin(tmp_path: Path) -> str:
 
 @pytest.fixture
 def scenario(monkeypatch, tmp_path):
-    def _set(name: str, version: str = "1.2.0"):
+    def _set(name: str, version: str = "1.3.0"):
         monkeypatch.setenv("FAKE_IGN_SCENARIO", name)
         monkeypatch.setenv("FAKE_IGN_VERSION", version)
         monkeypatch.setenv("FAKE_IGN_CRASH_MARK", str(tmp_path / "crashed"))
