@@ -116,7 +116,7 @@ async def test_composite_never_raises(settings, scenario):
 
 async def test_guarded_composites_confirm_not_required(client):
     tools = {t.name: t for t in await client.list_tools()}
-    for name in ("deploy_project", "rig_fresh"):
+    for name in ("deploy_project", "rig_fresh", "push_workspace"):
         schema = tools[name].input_schema
         assert "confirm" in schema["properties"]
         assert "confirm" not in schema.get("required", [])
@@ -208,3 +208,137 @@ async def test_find_alarms_priority_is_an_enum(client):
         (v.get("enum") for v in prop.get("anyOf", []) if v.get("enum")), None
     )
     assert enum == ["Diagnostic", "Low", "Medium", "High", "Critical"]
+
+
+async def test_push_workspace_without_confirm_is_refused_by_ign(client):
+    out = envelope_of(
+        await client.call_tool("push_workspace", {"path": "ws/Demo"}, raise_on_error=False)
+    )
+    assert out["ok"] is False
+    assert out["step"] == "workspace_push"
+    assert out["error"]["error"]["code"] == "confirmation_required"
+    assert [s["tool"] for s in out["steps"]] == ["workspace_status", "workspace_push"]
+    assert "push" not in out and "pushed" not in out
+
+
+async def test_push_workspace_confirm_path(client):
+    out = envelope_of(
+        await client.call_tool("push_workspace", {"path": "ws/Demo", "confirm": True})
+    )
+    assert out["ok"] is True
+    assert [s["tool"] for s in out["steps"]] == [
+        "workspace_status",
+        "workspace_push",
+        "workspace_status",
+    ]
+    assert out["push"]["wrote"] == ["views/Main.json"]
+    assert out["pushed"] == ["views/Main.json"]
+    assert out["before"]["clean"] is False
+    # ign never advances the recorded baseline, so a pushed member reads as conflict.
+    assert out["after"]["clean"] is False
+    assert out["after"]["rows"] == [{"path": "views/Main.json", "kind": "conflict"}]
+    assert "ign workspace checkout" in out["note"]
+
+
+async def test_push_workspace_refuses_conflicts_even_with_confirm(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_conflict") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["step"] is None
+    assert out["error"]["error"]["code"] == "workspace_conflict"
+    assert out["conflicts"] == ["views/Main.json"]
+    message = out["error"]["error"]["message"]
+    assert "ign workspace checkout" in message and "after a successful push" in message
+    assert [s["tool"] for s in out["steps"]] == ["workspace_status"]
+
+
+async def test_push_workspace_refuses_when_clean(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_clean") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "nothing_to_push"
+    assert "ws/Demo" in out["error"]["error"]["message"]
+    assert out["status"]["clean"] is True
+    assert [s["tool"] for s in out["steps"]] == ["workspace_status"]
+
+
+async def test_push_workspace_fails_verification_when_edits_remain(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_push_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert [s["tool"] for s in out["steps"]] == [
+        "workspace_status",
+        "workspace_push",
+        "workspace_status",
+    ]
+    assert out["after"]["clean"] is False
+    assert out["push"]["wrote"]
+    assert out["before"]["rows"]
+
+
+async def test_push_workspace_fails_verification_when_deletion_remains(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_delete_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace",
+                {"path": "ws/Demo", "confirm": True, "delete": True},
+                raise_on_error=False,
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert "views/Old.json" in out["error"]["error"]["message"]
+    assert out["push"]["deleted"] == ["views/Old.json"]
+
+
+async def test_push_workspace_verifies_deletions(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_delete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True, "delete": True}
+            )
+        )
+    assert out["ok"] is True
+    assert out["pushed"] == ["views/Main.json", "views/Old.json"]
+
+
+async def test_push_workspace_fails_verification_when_added_member_still_local(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_added_incomplete") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["error"]["error"]["code"] == "verification_failed"
+    assert "views/Main.json" in out["error"]["error"]["message"]
+    assert out["after"]["rows"] == [{"path": "views/Main.json", "kind": {"added": {"local": True}}}]
+
+
+async def test_push_workspace_keeps_push_payload_when_verification_status_fails(settings, scenario):
+    async with client_with_scenario(settings, scenario, "ws_status_fails_after_push") as c:
+        out = envelope_of(
+            await c.call_tool(
+                "push_workspace", {"path": "ws/Demo", "confirm": True}, raise_on_error=False
+            )
+        )
+    assert out["ok"] is False
+    assert out["step"] == "workspace_status"
+    assert out["error"]["error"]["code"] == "gateway_error"
+    assert len(out["steps"]) == 3
+    assert out["push"]["wrote"] == ["views/Main.json"]
+    assert out["pushed"] == ["views/Main.json"]
+    assert "may already reflect these changes" in out["note"]

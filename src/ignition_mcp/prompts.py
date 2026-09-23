@@ -49,6 +49,37 @@ def register_prompts(mcp: FastMCP) -> None:
         )
 
     @mcp.prompt
+    def push_local_edits(path: str) -> str:
+        """Push local workspace edits to the gateway safely."""
+        return (
+            f"Push the local edits in the workspace at {path} to its gateway project.\n"
+            f"1. Call workspace_status with path: {path}. If clean is true, stop and say there "
+            "is nothing to push.\n"
+            "2. Review the rows. If any row's kind is conflict, stop: conflicts cannot be "
+            "pushed even with confirm. Reconcile locally and re-run `ign workspace checkout` "
+            "for this project; a conflict right after a successful push only needs the "
+            "re-checkout. Report each "
+            "local_edit, added, and deleted row; deletions are pushed only with delete: true.\n"
+            "3. Present the selected changes (each local_edit, added, and deleted path) to the "
+            "user and get explicit approval before calling anything with confirm: true; do not "
+            "proceed without it.\n"
+            f"4. Call workspace_push with path: {path}, confirm: true, and delete: true ONLY "
+            "when the user approved pushing the local deletions.\n"
+            f"5. Call workspace_status with path: {path} again. Every member in the push's "
+            "wrote must no longer be local_edit, and every member in its deleted must no longer "
+            'be a local deletion (kind {"deleted": {"local": true}}); push_workspace applies '
+            "the same rule. ign does not advance the workspace baseline on push, so pushed "
+            "members now read as conflict; that is expected.\n"
+            "6. Re-run `ign workspace checkout` for this project before pushing again, so the "
+            "baseline matches the gateway.\n"
+            f"Shortcut: push_workspace({path}, confirm: true) does steps 1, 2, 4 and 5, refuses "
+            "with workspace_conflict or nothing_to_push before pushing anything, and still "
+            "needs step 6 afterwards. Call it with confirm: true only after the user's "
+            "approval in step 3, and with delete: true only if that approval covered the "
+            "deletions."
+        )
+
+    @mcp.prompt
     def triage_alarm(path: str) -> str:
         """Investigate an active alarm on a tag path."""
         return (

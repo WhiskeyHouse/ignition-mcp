@@ -51,7 +51,7 @@ any database connection with `enabled: false`, and any doctor check whose status
 `Fail`. It names `diagnose_gateway` as the one-call shortcut.
 
 The other prompts are `bring_up_rig`, `sync_project(project, profile_a, profile_b)`,
-and `triage_alarm(path)`.
+`push_local_edits(path)`, and `triage_alarm(path)`.
 
 ## A guarded call
 

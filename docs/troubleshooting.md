@@ -14,7 +14,7 @@ line to stderr, prefixed `ign-mcp:`, and exits with status 1.
 
 - `ign binary not found at 'ign'; set IGN_BIN or add ign to PATH` — `ign` is not on
   `PATH`. Set `IGN_BIN` to the full path, or pass `--ign-bin /path/to/ign`.
-- `ign 1.1.0 is too old; need >= 1.2.0` — upgrade ign. The server does not run
+- `ign 1.1.0 is too old; need >= 1.3.0` — upgrade ign. The server does not run
   against older versions.
 - `ign --version timed out after 10s` or `ign --version exited 1` — the binary at
   that path is not a working ign. Run it yourself and see what it says.
@@ -82,10 +82,9 @@ ign rejected the arguments. The message carries ign's own text and the hint says
 check the tool's input schema. Ask your client to show the schema for that tool and
 compare argument names; they are ign's names, not renamed here.
 
-One case looks like a bug and is not. In ign 1.2.0, `rig_down` and `workspace_push`
-are not in ign's guarded set, so they do not accept a `confirm` argument at all.
-Sending `confirm: true` to either one is an unknown argument and fails this way.
-Call them without it. For a guarded teardown and rebuild of a rig, use the
+One case looks like a bug and is not. `rig_down` is not in ign's guarded set, so it
+does not accept a `confirm` argument at all. Sending `confirm: true` to it is an
+unknown argument and fails this way. Call it without it. For a guarded teardown and rebuild of a rig, use the
 `rig_fresh` composite, which gates itself.
 
 ## `confirmation_required`
@@ -103,7 +102,43 @@ removed resources, so it refused rather than running a destructive sync that wou
 do nothing. The result's `summary` shows the counts it saw. If you expected a
 difference, check that `profile_a`, `profile_b`, and `project` name what you meant.
 
+## `workspace_conflict`
+
+`push_workspace` read `workspace_status` first and found members whose kind is
+`conflict`: they changed both locally and on the gateway since the checkout. ign
+refuses to push a conflict even with `confirm: true`, so the composite refuses
+before pushing anything. The result's `conflicts` lists the paths.
+
+Right after a successful push this is expected, not a problem. ign never advances
+the workspace baseline on push, so every member you just pushed now differs from
+the baseline on both sides and reads as `conflict`. Re-run the checkout for the
+project into the same workspace directory, which refreshes the baseline, then push
+again only if you have new edits:
+
+```sh
+ign --profile uat workspace checkout <PROJECT> <WORKSPACE_DIR>
+```
+
+Otherwise reconcile the listed members locally against the gateway, then check
+out again before pushing.
+
+## `nothing_to_push`
+
+`push_workspace` found the workspace `clean`: nothing differs from the gateway, so
+it refused rather than run a push that would write nothing. The result's `status`
+is the `workspace_status` it saw. If you expected edits, check that `path` points
+at the workspace you edited.
+
 ## `verification_failed`
+
+From `deploy_project` and `push_workspace`. Both check their own work after the
+destructive step and report this code when that step did not land.
+
+`push_workspace` pushed, read `workspace_status` again, and a member that
+`workspace_push` reported writing is still `local_edit` (or a member it reported
+deleting is still a local deletion). The message names those members, and the
+result carries `before`, `push`, and `after`. Pushed members that read as
+`conflict` are not a failure: see `workspace_conflict` above.
 
 `deploy_project` ran the sync, diffed the two profiles again, and the project still
 has added or changed resources on `profile_b`. The sync did not land. The message

@@ -13,6 +13,31 @@ from ignition_mcp.ign import IgnBackend
 PRIORITY_ORDER = ["Diagnostic", "Low", "Medium", "High", "Critical"]
 HEALTHY_MODULE_STATES = frozenset({"ACTIVE", "RUNNING"})
 FAILED_DOCTOR_STATUS = "Fail"
+BASELINE_NOTE = (
+    "ign does not advance the workspace baseline on push; pushed members now read as "
+    "`conflict` in workspace_status until you re-run `ign workspace checkout` for this "
+    "project. Run push_workspace again only after a fresh checkout."
+)
+LOCAL_DELETE = {"deleted": {"local": True}}
+PUSH_UNVERIFIED_NOTE = (
+    "workspace_push completed before the verification status failed; the gateway may "
+    "already reflect these changes"
+)
+
+
+def _still_local(kind: Any) -> bool:
+    """True when a workspace_status row kind still describes an unpushed local change:
+    `local_edit`, or `{"added": {"local": true}}`.
+
+    The `added` case is defensive hardening. In ign 1.3.0 it is unreachable: push
+    writes only `local_edit` members and `Added.local` is always false. It keeps the
+    check correct if a later ign starts pushing locally added members."""
+    if kind == "local_edit":
+        return True
+    if isinstance(kind, dict):
+        added = kind.get("added")
+        return isinstance(added, dict) and added.get("local") is True
+    return False
 
 
 def _rank(priority: str) -> int:
@@ -212,6 +237,95 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
             return r.ok(status=status)
         except StepFailed as e:
             return r.failed(e)
+        except Exception as exc:
+            return r.internal_error(exc)
+
+    @mcp.tool
+    async def push_workspace(
+        path: str = ".", confirm: bool = False, delete: bool = False
+    ) -> ToolResult:
+        """Push the local workspace at `path` to its gateway project via ign's
+        workspace_push. Refuses when any member changed on both sides or when the
+        workspace already matches the gateway, and requires confirm: true to
+        actually push (workspace_push is destructive).
+
+        Conflicts are refused before any push is attempted, even with confirm:
+        true, because ign can never confirm them. The second workspace_status is a
+        verification of the pushed members only: a written member still
+        `local_edit`, or a deleted member still a local deletion, means the push
+        did not land and the result is `verification_failed`. ign never advances
+        the workspace baseline on push, so pushed members read as `conflict`
+        afterwards until a fresh `ign workspace checkout`; that is success, and the
+        result says so in `note`. Local deletions are pushed only with delete:
+        true."""
+        r = Runner(backend)
+        push: Any = None
+        try:
+            before = await r.run("workspace_status", {"path": path})
+            rows = before.get("rows", [])
+            conflicts = [
+                row.get("path")
+                for row in rows
+                if isinstance(row, dict) and row.get("kind") == "conflict"
+            ]
+            if conflicts:
+                return r.refused(
+                    "workspace_conflict",
+                    f"{len(conflicts)} member(s) changed on both sides; reconcile locally, "
+                    "then re-run `ign workspace checkout` for this project before pushing. "
+                    "A conflict immediately after a successful push is expected: ign does "
+                    "not advance the workspace baseline on push, so re-checkout first",
+                    conflicts=conflicts,
+                )
+            if before.get("clean") is True:
+                return r.refused(
+                    "nothing_to_push",
+                    f"workspace at {path} matches the gateway",
+                    status=before,
+                )
+            push = await r.run(
+                "workspace_push", {"path": path, "delete": delete, "confirm": confirm}
+            )
+            after = await r.run("workspace_status", {"path": path})
+            wrote = list(push.get("wrote", []))
+            deleted = list(push.get("deleted", []))
+            kinds = {
+                row.get("path"): row.get("kind")
+                for row in after.get("rows", [])
+                if isinstance(row, dict)
+            }
+            not_landed = [p for p in wrote if _still_local(kinds.get(p))]
+            not_landed += [p for p in deleted if kinds.get(p) == LOCAL_DELETE]
+            if not_landed:
+                return r.refused(
+                    "verification_failed",
+                    f"workspace_push reported {len(not_landed)} member(s) pushed that "
+                    f"workspace_status still shows as local changes: {', '.join(not_landed)}",
+                    before=before,
+                    push=push,
+                    after=after,
+                )
+            return r.ok(
+                before=before,
+                push=push,
+                after=after,
+                pushed=wrote + deleted,
+                note=BASELINE_NOTE,
+            )
+        except StepFailed as e:
+            # A failure after workspace_push succeeded must still say what was pushed.
+            return r.failed(
+                e,
+                **(
+                    {
+                        "push": push,
+                        "pushed": list(push.get("wrote", [])) + list(push.get("deleted", [])),
+                        "note": PUSH_UNVERIFIED_NOTE,
+                    }
+                    if push is not None
+                    else {}
+                ),
+            )
         except Exception as exc:
             return r.internal_error(exc)
 

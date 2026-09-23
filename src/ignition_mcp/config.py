@@ -11,4 +11,4 @@ class Settings(BaseSettings):
     profile: str | None = Field(default=None, validation_alias="IGNITION_PROFILE")
     host: str = "127.0.0.1"
     port: int = 8765
-    min_ign_version: str = "1.2.0"
+    min_ign_version: str = "1.3.0"

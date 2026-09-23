@@ -3,7 +3,7 @@
 A local **Streamable HTTP** front for [`ign mcp serve`](https://github.com/WhiskeyHouse/ignition-cli),
 plus composite workflow tools, `ign://` resources, and runbook prompts.
 
-`ign` is the source of truth: every ign verb is proxied unchanged (the full ign tool catalog, 91 tools in ign 1.2.0),
+`ign` is the source of truth: every ign verb is proxied unchanged (the full ign tool catalog, 91 tools in ign 1.3.0),
 credentials and profiles are ign's, and destructive verbs still require `confirm: true`.
 This server never talks to a gateway itself.
 
@@ -22,11 +22,8 @@ An agent inspects gateway health, reads batch conditions and traceability, and d
 
 ## Requirements
 
-- `ign` >= 1.2.0 on PATH (or `IGN_BIN=/path/to/ign`) with a configured profile
+- `ign` >= 1.3.0 on PATH (or `IGN_BIN=/path/to/ign`) with a configured profile
 - Python 3.11+, `uv`
-
-`ign workspace push` cannot be confirmed over MCP in ign 1.2.0 (the verb is not in
-ign's guarded set), so there is no local-workspace push composite yet.
 
 ## Run
 
@@ -82,6 +79,7 @@ Old tool names map onto ign verbs:
 |------|-------|---------|
 | `diagnose_gateway()` | status, license_status, redundancy_status, gan_status, connections, modules, doctor → `verdict` healthy/degraded/down | no |
 | `deploy_project(project, profile_a, profile_b, confirm=False, delete=False)` | project_diff → project_sync (all-changed) → project_diff; profile A→B promotion; refuses `nothing_to_promote` when identical and `verification_failed` when the second diff still shows added or changed resources; reports `pending_removals` when only removals are left and `delete` is false | `confirm` |
+| `push_workspace(path=".", confirm=False, delete=False)` | workspace_status → workspace_push → workspace_status; local workspace to gateway push; refuses `workspace_conflict` (before any push, even with `confirm`) when a member changed on both sides, `nothing_to_push` when the workspace is clean, and `verification_failed` when a member ign reported writing is still `local_edit` (or a deleted one is still a local deletion); success returns `pushed` and a `note`: ign does not advance the workspace baseline, so pushed members read as `conflict` until you re-run `ign workspace checkout` | `confirm` |
 | `rig_fresh(confirm=False)` | rig_down, rig_up, wait_gateway, status | `confirm` |
 | `tag_snapshot(path, max_depth=3, max_tags=500, max_browses=50)` | tags_browse (recursed in Python, at most `max_browses` calls) + tags_read; reports `truncated` and `browse_budget_exhausted` | no |
 | `find_alarms(min_priority="Diagnostic", path_contains=None)` | tags_alarms_active, filtered | no |
@@ -94,7 +92,7 @@ Results: `{"ok", "steps": [{tool, ok, code}], ...}`; on failure also `step` and 
 
 ## Prompts
 
-`health_check`, `bring_up_rig`, `sync_project(project, profile_a, profile_b)`, `triage_alarm(path)`
+`health_check`, `bring_up_rig`, `sync_project(project, profile_a, profile_b)`, `push_local_edits(path)`, `triage_alarm(path)`
 
 ## Develop
 

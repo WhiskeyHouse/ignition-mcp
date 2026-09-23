@@ -2,26 +2,32 @@
 """A stand-in for `ign` that speaks enough of `ign mcp serve` for tests.
 
 Protocol: newline-delimited JSON-RPC 2.0 on stdio, exactly like ign.
-Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | dirty | crash_once |
+Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | crash_once |
 identical | module_faulted | garbage_shapes | garbage_text | garbage_json | doctor_fail |
-sync_incomplete | method_missing.
+sync_incomplete | pending_removals | method_missing | ws_clean | ws_conflict |
+ws_push_incomplete | ws_delete | ws_delete_incomplete |
+ws_added_incomplete | ws_status_fails_after_push.
 """
 
 import json
 import os
 import sys
 
-VERSION = os.environ.get("FAKE_IGN_VERSION", "1.2.0")
+VERSION = os.environ.get("FAKE_IGN_VERSION", "1.3.0")
 SCENARIO = os.environ.get("FAKE_IGN_SCENARIO", "healthy")
 # How many project_diff calls this process has answered: the second one is the
 # post-sync verification, so scenarios can make it differ from the first.
 DIFFS = 0
+# Set once a confirmed workspace_push succeeds, so the next workspace_status
+# reflects the push. Real ign never advances the recorded baseline on push, so a
+# pushed member then reads as `conflict` (unless the scenario says it did not land).
+PUSHED = False
 PROFILE = None
 for i, a in enumerate(sys.argv):
     if a == "--profile" and i + 1 < len(sys.argv):
         PROFILE = sys.argv[i + 1]
 
-GUARDED = {"project_sync", "restart"}
+GUARDED = {"project_sync", "restart", "workspace_push"}
 TOOLS = [
     "status",
     "license_status",
@@ -31,6 +37,7 @@ TOOLS = [
     "modules",
     "doctor",
     "workspace_status",
+    "workspace_push",
     "project_sync",
     "project_diff",
     "rig_down",
@@ -60,6 +67,7 @@ def fail(code, message, hint=None):
 
 
 def envelope(name, args):
+    global PUSHED
     if name in GUARDED and not args.get("confirm"):
         return fail(
             "confirmation_required",
@@ -116,14 +124,31 @@ def envelope(name, args):
             )
         return ok({"checks": checks})
     if name == "workspace_status":
-        dirty = SCENARIO == "dirty"
-        changed = ["views/Main.json"] if dirty else []
+        # Real shape: one row per member, `kind` is a string (clean | local_edit |
+        # gateway_drift | conflict) or {"added"|"deleted": {"local": bool}}.
+        if SCENARIO == "ws_status_fails_after_push" and PUSHED:
+            return fail("gateway_error", "project export failed")
+        if SCENARIO == "ws_clean":
+            kind = "clean"
+        elif SCENARIO == "ws_conflict" or (PUSHED and SCENARIO != "ws_push_incomplete"):
+            kind = "conflict"
+        else:
+            kind = "local_edit"
+        if SCENARIO == "ws_added_incomplete" and PUSHED:
+            kind = {"added": {"local": True}}
+        rows = [{"path": "views/Main.json", "kind": kind}]
+        if SCENARIO == "ws_delete_incomplete" or (SCENARIO == "ws_delete" and not PUSHED):
+            rows.append({"path": "views/Old.json", "kind": {"deleted": {"local": True}}})
         return ok(
-            {
-                "project": "Demo",
-                "clean": not dirty,
-                "rows": [{"path": p, "kind": "modified"} for p in changed],
-            }
+            {"project": "Demo", "clean": all(r["kind"] == "clean" for r in rows), "rows": rows}
+        )
+    if name == "workspace_push":
+        PUSHED = True
+        deleted = []
+        if args.get("delete") and SCENARIO in ("ws_delete", "ws_delete_incomplete"):
+            deleted = ["views/Old.json"]
+        return ok(
+            {"project": "Demo", "wrote": ["views/Main.json"], "deleted": deleted, "skipped": []}
         )
     if name == "project_sync":
         return ok(
@@ -292,6 +317,7 @@ PROPERTIES = {
     "tags_read": {"paths": STR_LIST},
     "tags_alarms_active": {"priority": STR, "source": STR, "state": STR},
     "workspace_status": {"path": STR},
+    "workspace_push": {"path": STR, "delete": BOOL},
     "logs": {"limit": {"type": "string"}},
     # rig_down genuinely has no properties on the real `ign mcp serve` (it is
     # not a guarded verb, unlike rig_reset/rig_restore/rig_trial_reset); an

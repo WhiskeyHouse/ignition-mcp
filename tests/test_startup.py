@@ -21,4 +21,4 @@ async def test_too_old(ign_bin, scenario):
     s = Settings(ign_bin=ign_bin)
     with pytest.raises(IgnUnavailable) as e:
         await IgnBackend(s).start()
-    assert "1.1.9" in str(e.value) and "1.2.0" in str(e.value)
+    assert "1.1.9" in str(e.value) and "1.3.0" in str(e.value)
