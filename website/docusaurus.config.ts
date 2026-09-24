@@ -45,6 +45,19 @@ const config: Config = {
       }
     ]
   ],
+  "themes": [
+    [
+      "@easyops-cn/docusaurus-search-local",
+      {
+        "docsDir": "../docs",
+        "indexBlog": false,
+        "hashed": "filename",
+        "searchBarShortcut": true,
+        "searchBarShortcutHint": true,
+        "searchBarShortcutKeymap": "mod+k"
+      }
+    ]
+  ],
   "themeConfig": {
     "colorMode": {
       "defaultMode": "dark",
@@ -86,6 +99,11 @@ const config: Config = {
             }
           ],
           "position": "left"
+        },
+        {
+          "href": "https://awake-iris-z6ww.here.now/",
+          "label": "FIELDNOTES",
+          "position": "right"
         },
         {
           "href": "https://github.com/WhiskeyHouse/ignition-mcp/releases",
