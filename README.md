@@ -3,7 +3,7 @@
 A local **Streamable HTTP** front for [`ign mcp serve`](https://github.com/WhiskeyHouse/ignition-cli),
 plus composite workflow tools, `ign://` resources, and runbook prompts.
 
-`ign` is the source of truth: every ign verb is proxied unchanged (the full ign tool catalog, 91 tools in ign 1.3.0),
+`ign` is the source of truth: every ign verb is proxied unchanged (the full ign tool catalog, 92 tools in ign 1.4.0),
 credentials and profiles are ign's, and destructive verbs still require `confirm: true`.
 This server never talks to a gateway itself.
 
@@ -22,7 +22,7 @@ An agent inspects gateway health, reads batch conditions and traceability, and d
 
 ## Requirements
 
-- `ign` >= 1.3.0 on PATH (or `IGN_BIN=/path/to/ign`) with a configured profile
+- `ign` >= 1.4.0 on PATH (or `IGN_BIN=/path/to/ign`) with a configured profile
 - Python 3.11+, `uv`
 
 ## Run

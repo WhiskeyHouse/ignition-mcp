@@ -1,5 +1,5 @@
 {
-  "ign_version": "1.3.0",
+  "ign_version": "1.4.0",
   "tools": [
     {
       "name": "adopt",
@@ -208,6 +208,10 @@
     {
       "name": "rig_logs",
       "description": "Stream the rig's container logs (compose logs passthrough \u2014 raw lines, no envelope in any mode; the third streaming exception, README-documented)"
+    },
+    {
+      "name": "rig_module_uninstall",
+      "description": "Remove a module from the gateway entirely \u2014 destructive, refused without `--yes`. `ID` is a REGISTRY id (the same one `rig up --with-module` takes; see `ign rig up --with-module`), never a raw gateway module id \u2014 a hand-installed module cannot be named here. Needs `IGNITION_TOKEN`. The gateway refuses while the `.modl` is still mounted: undeclare the module and run `ign rig up` first. A successful uninstall is NOT reversible by re-declaring \u2014 recovery today means `ign rig reset --yes`, which destroys the rig's data volume"
     },
     {
       "name": "rig_reset",

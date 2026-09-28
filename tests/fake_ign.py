@@ -15,7 +15,7 @@ import json
 import os
 import sys
 
-VERSION = os.environ.get("FAKE_IGN_VERSION", "1.3.0")
+VERSION = os.environ.get("FAKE_IGN_VERSION", "1.4.0")
 SCENARIO = os.environ.get("FAKE_IGN_SCENARIO", "healthy")
 # How many project_diff calls this process has answered: the second one is the
 # post-sync verification, so scenarios can make it differ from the first.

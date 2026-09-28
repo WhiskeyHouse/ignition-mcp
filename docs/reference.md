@@ -109,8 +109,8 @@ A failed call returns:
 Destructive verbs carry a `confirm` boolean and refuse with the error code
 `confirmation_required` until it is `true`.
 
-The table below is a snapshot of the 91 tools reported by `ign mcp serve`
-in ign 1.3.0. Another ign version may report a different set; ask your MCP
+The table below is a snapshot of the 92 tools reported by `ign mcp serve`
+in ign 1.4.0. Another ign version may report a different set; ask your MCP
 client to list tools for the authoritative answer.
 
 | Tool | Description |
@@ -167,6 +167,7 @@ client to list tools for the authoritative answer.
 | `restart` | Restart the gateway — destructive, refused without --yes; --wait polls until RUNNING |
 | `rig_down` | Stop the rig (compose down --remove-orphans; volumes KEPT — `reset` owns the teardown half) |
 | `rig_logs` | Stream the rig's container logs (compose logs passthrough — raw lines, no envelope in any mode; the third streaming exception, README-documented) |
+| `rig_module_uninstall` | Remove a module from the gateway entirely — destructive, refused without `--yes`. `ID` is a REGISTRY id (the same one `rig up --with-module` takes; see `ign rig up --with-module`), never a raw gateway module id — a hand-installed module cannot be named here. Needs `IGNITION_TOKEN`. The gateway refuses while the `.modl` is still mounted: undeclare the module and run `ign rig up` first. A successful uninstall is NOT reversible by re-declaring — recovery today means `ign rig reset --yes`, which destroys the rig's data volume |
 | `rig_reset` | Tear the rig down AND remove its volumes (down -v --remove-orphans), then bring it back up fresh — destructive, refused without --yes; no stale project/trial state survives |
 | `rig_restore` | Restore a gwbk onto the rig's gateway — destructive, refused without --yes; synchronous restore + restart, then a witnessed RUNNING wait |
 | `rig_snapshot` | Snapshot the rig's gateway: native gwbk (roaming backup, streamed) + per-project exports + manifest.json, composed in a timestamped directory — repeatable state |
