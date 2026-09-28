@@ -230,31 +230,42 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
         removal is `rig_module_uninstall`, which is guarded and irreversible.
         The key is absent on an ign older than the module work, which is not
         the same as an empty list; `orphaned_modules_supported` says which
-        case you are in."""
+        case you are in.
+
+        The report survives a LATER step failing. Once rig_up has answered,
+        its orphans are known, and a rig whose wait_gateway or status then
+        fails is exactly when a caller wants them — dropping the report there
+        would hide it in the messiest case."""
         r = Runner(backend)
         if not confirm:
             return r.refused(
                 "confirmation_required",
                 "rig_fresh is destructive (rig_down then rig_up); rerun with confirm: true",
             )
+        # Carried OUTSIDE the try so the failure path can report them too.
+        orphaned: list[Any] = []
+        supported = False
         try:
             await r.run("rig_down")
             up = await r.run("rig_up")
-            await r.run("wait_gateway")
-            status = await r.run("status")
             # rig_up's report is the ONLY place a caller learns a module is
             # orphaned. Returning only `status` swallowed it.
             supported = isinstance(up, dict) and "orphaned_modules" in up
-            orphaned = up.get("orphaned_modules", []) if supported else []
-            if not isinstance(orphaned, list):
-                orphaned = []
+            candidate = up.get("orphaned_modules", []) if supported else []
+            orphaned = candidate if isinstance(candidate, list) else []
+            await r.run("wait_gateway")
+            status = await r.run("status")
             return r.ok(
                 status=status,
                 orphaned_modules=orphaned,
                 orphaned_modules_supported=supported,
             )
         except StepFailed as e:
-            return r.failed(e)
+            return r.failed(
+                e,
+                orphaned_modules=orphaned,
+                orphaned_modules_supported=supported,
+            )
         except Exception as exc:
             return r.internal_error(exc)
 

@@ -110,6 +110,19 @@ async def test_rig_fresh_marks_an_ign_that_cannot_report_orphans(settings, scena
     assert out["orphaned_modules_supported"] is False
 
 
+async def test_rig_fresh_keeps_the_orphan_report_when_a_later_step_fails(settings, scenario):
+    """Once rig_up has answered, its orphans are KNOWN. A rig whose
+    wait_gateway then fails is exactly when a caller wants them, so the
+    failure envelope carries the report too."""
+    async with client_with_scenario(settings, scenario, "rig_orphan_then_wait_fails") as c:
+        result = await c.call_tool("rig_fresh", {"confirm": True}, raise_on_error=False)
+    out = envelope_of(result)
+    assert out["ok"] is False
+    assert out["step"] == "wait_gateway"
+    assert out["orphaned_modules_supported"] is True
+    assert [m["id"] for m in out["orphaned_modules"]] == ["git"]
+
+
 async def test_tag_snapshot(client):
     out = envelope_of(await client.call_tool("tag_snapshot", {"path": "[default]Line1"}))
     assert out["ok"] is True
