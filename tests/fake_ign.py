@@ -2,7 +2,8 @@
 """A stand-in for `ign` that speaks enough of `ign mcp serve` for tests.
 
 Protocol: newline-delimited JSON-RPC 2.0 on stdio, exactly like ign.
-Scenario via FAKE_IGN_SCENARIO: healthy (default) | license_down | crash_once |
+Scenario via FAKE_IGN_SCENARIO: healthy (default) | rig_orphan | rig_up_legacy |
+license_down | crash_once |
 identical | module_faulted | garbage_shapes | garbage_text | garbage_json | doctor_fail |
 sync_incomplete | pending_removals | method_missing | ws_clean | ws_conflict |
 ws_push_incomplete | ws_delete | ws_delete_incomplete |
@@ -186,7 +187,31 @@ def envelope(name, args):
                 "summary": summary,
             }
         )
-    if name in ("rig_down", "rig_up", "wait_gateway"):
+    if name == "rig_up":
+        # The orphan report: always present on a current ign, an EMPTY list
+        # when nothing is orphaned. `rig_up_legacy` omits the key entirely,
+        # which is what an ign older than the module work answers — a
+        # different case from "nothing orphaned", and the one the version
+        # floor does not currently catch.
+        if SCENARIO == "rig_up_legacy":
+            return ok({"done": name})
+        if SCENARIO == "rig_orphan":
+            return ok(
+                {
+                    "done": name,
+                    "orphaned_modules": [
+                        {
+                            "id": "git",
+                            "gateway_module_id": "com.axone_io.ignition.git",
+                            "remove_with": "ign rig module uninstall git --rig dev --yes",
+                        }
+                    ],
+                }
+            )
+        if SCENARIO == "garbage_shapes":
+            return ok({"done": name, "orphaned_modules": "not-a-list"})
+        return ok({"done": name, "orphaned_modules": []})
+    if name in ("rig_down", "wait_gateway"):
         return ok({"done": name})
     if name == "rig_status":
         return ok({"containers": [{"name": "gw", "state": "running"}]})

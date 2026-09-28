@@ -222,7 +222,15 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
         ign's `rig_down` verb is not itself guarded (unlike rig_reset,
         rig_restore, and rig_trial_reset), so this composite enforces its own
         confirmation gate before making any ign call, rather than forwarding
-        `confirm` to rig_down."""
+        `confirm` to rig_down.
+
+        `orphaned_modules` carries rig_up's report of modules that are no
+        longer declared but remain INSTALLED on the gateway. It is advisory:
+        rig_up never removes them, and this composite does not either —
+        removal is `rig_module_uninstall`, which is guarded and irreversible.
+        The key is absent on an ign older than the module work, which is not
+        the same as an empty list; `orphaned_modules_supported` says which
+        case you are in."""
         r = Runner(backend)
         if not confirm:
             return r.refused(
@@ -231,10 +239,20 @@ def register_workflows(mcp: FastMCP, backend: IgnBackend) -> None:
             )
         try:
             await r.run("rig_down")
-            await r.run("rig_up")
+            up = await r.run("rig_up")
             await r.run("wait_gateway")
             status = await r.run("status")
-            return r.ok(status=status)
+            # rig_up's report is the ONLY place a caller learns a module is
+            # orphaned. Returning only `status` swallowed it.
+            supported = isinstance(up, dict) and "orphaned_modules" in up
+            orphaned = up.get("orphaned_modules", []) if supported else []
+            if not isinstance(orphaned, list):
+                orphaned = []
+            return r.ok(
+                status=status,
+                orphaned_modules=orphaned,
+                orphaned_modules_supported=supported,
+            )
         except StepFailed as e:
             return r.failed(e)
         except Exception as exc:
