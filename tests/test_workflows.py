@@ -78,6 +78,51 @@ async def test_rig_fresh_requires_confirm(client):
     assert [s["tool"] for s in out["steps"]] == ["rig_down", "rig_up", "wait_gateway", "status"]
 
 
+async def test_rig_fresh_surfaces_the_orphan_report(settings, scenario):
+    """rig_up's orphan report is the ONLY place a caller learns a module is
+    no longer declared but still installed. rig_fresh used to return only
+    `status`, which swallowed it."""
+    async with client_with_scenario(settings, scenario, "rig_orphan") as c:
+        out = envelope_of(await c.call_tool("rig_fresh", {"confirm": True}))
+    assert out["ok"] is True
+    assert out["orphaned_modules_supported"] is True
+    assert [m["id"] for m in out["orphaned_modules"]] == ["git"]
+    assert out["orphaned_modules"][0]["remove_with"].startswith("ign rig module uninstall git")
+
+
+async def test_rig_fresh_reports_no_orphans_as_an_empty_list(client):
+    """Nothing orphaned is an EMPTY list on a current ign, and the composite
+    must not confuse that with an ign that cannot report at all."""
+    out = envelope_of(await client.call_tool("rig_fresh", {"confirm": True}))
+    assert out["ok"] is True
+    assert out["orphaned_modules"] == []
+    assert out["orphaned_modules_supported"] is True
+
+
+async def test_rig_fresh_marks_an_ign_that_cannot_report_orphans(settings, scenario):
+    """An ign older than the module work omits the key entirely. That is NOT
+    the same as "nothing orphaned", and the released v1.3.0 tag is exactly
+    such a build, so this case is reachable today."""
+    async with client_with_scenario(settings, scenario, "rig_up_legacy") as c:
+        out = envelope_of(await c.call_tool("rig_fresh", {"confirm": True}))
+    assert out["ok"] is True
+    assert out["orphaned_modules"] == []
+    assert out["orphaned_modules_supported"] is False
+
+
+async def test_rig_fresh_keeps_the_orphan_report_when_a_later_step_fails(settings, scenario):
+    """Once rig_up has answered, its orphans are KNOWN. A rig whose
+    wait_gateway then fails is exactly when a caller wants them, so the
+    failure envelope carries the report too."""
+    async with client_with_scenario(settings, scenario, "rig_orphan_then_wait_fails") as c:
+        result = await c.call_tool("rig_fresh", {"confirm": True}, raise_on_error=False)
+    out = envelope_of(result)
+    assert out["ok"] is False
+    assert out["step"] == "wait_gateway"
+    assert out["orphaned_modules_supported"] is True
+    assert [m["id"] for m in out["orphaned_modules"]] == ["git"]
+
+
 async def test_tag_snapshot(client):
     out = envelope_of(await client.call_tool("tag_snapshot", {"path": "[default]Line1"}))
     assert out["ok"] is True

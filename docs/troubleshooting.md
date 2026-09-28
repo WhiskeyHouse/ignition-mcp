@@ -14,7 +14,7 @@ line to stderr, prefixed `ign-mcp:`, and exits with status 1.
 
 - `ign binary not found at 'ign'; set IGN_BIN or add ign to PATH` — `ign` is not on
   `PATH`. Set `IGN_BIN` to the full path, or pass `--ign-bin /path/to/ign`.
-- `ign 1.1.0 is too old; need >= 1.3.0` — upgrade ign. The server does not run
+- `ign 1.3.0 is too old; need >= 1.4.0` — upgrade ign. The server does not run
   against older versions.
 - `ign --version timed out after 10s` or `ign --version exited 1` — the binary at
   that path is not a working ign. Run it yourself and see what it says.
