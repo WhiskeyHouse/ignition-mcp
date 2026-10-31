@@ -4,7 +4,7 @@ version = "1.1.0"
 description = "Local HTTP MCP front for `ign mcp serve` with composite workflows, resources, and prompts"
 requires-python = ">=3.11"
 dependencies = [
-    "fastmcp>=4",
+    "fastmcp>=4.1.2",
     "pydantic-settings>=2",
 ]
 
