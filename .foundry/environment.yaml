@@ -1,0 +1,4 @@
+# Foundry job environment: run Foundry jobs in Foundry's universal dev image.
+toolchains:
+  node: "22"
+  python: "3.12"
